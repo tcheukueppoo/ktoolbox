@@ -1,0 +1,28 @@
+#!/usr/bin/env sh
+
+putokenhere()
+{
+	echo "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"
+}
+
+push()
+{
+	local lbranch='master'
+	local rbranch='master'
+	case $# in
+	1) lbranch="$1" ;;
+	2) lbranch="$1" && rbranch="$2" ;;
+	*) :;;
+	esac
+	local cwd="$(basename $PWD)"
+	for i in $remote1 $remote2 $remote2; do
+		printf "Preparing to push local branch to %s/%s\n" $i $cwd
+		git push "${i}/${cwd}" "${lbranch}:${rbranch}"
+	done
+}
+
+remote1="https://$(putokenhere)@github.com/tcheukueppo"
+remote2='https://codeberg.org/tcheukueppo'
+remote3='https://gitlab.org/tcheukueppo'
+
+push
