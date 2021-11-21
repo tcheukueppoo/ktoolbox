@@ -25,13 +25,9 @@ instals () {
 	case "$(uname -a)" in
 		*[aA]rch*) pacman -Sy clangd ;;
 		*[Dd]ebian*) apt-get install clangd-12 ;;
-		*BSD*) ;;# doas ... 
+		*BSD*) : ;;
 		*) printf "Unkown operating system" 2>/dev/null
 	esac
-	# fetch and install the following LS:
-	# lua, markdown, language server from github
-	#git clone 'https://github.com/sumneko/lua-language-server' /tmp/luals
-
 }
 
 check && instals

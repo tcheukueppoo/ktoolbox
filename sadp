@@ -1,0 +1,74 @@
+#!/usr/bin/env sh
+
+# config
+paths='/mnt2/media/musics/Sia:/mnt2/media/musics/NF:'
+sock='/tmp/sad-sock'
+cache="${XDG_HOME_CACHE:-"$HOME/.cache"}"
+sadcache="$cache/sadp"
+
+if ! test -S $sock; then
+	echo "ERR: no unix domain socket at: ${sock}" >&2
+	exit 1
+fi
+
+plycache() {
+	if test -r "$sadcache"; then
+		cat "$sadcache" | nc -q 0 -U $sock
+		echo "play" | nc -q 0 -U $sock
+	else
+		return 1
+	fi
+}
+
+addapl() {
+	local p dir
+	IFS=$':'
+	while read -r -d: p; do
+		dir=`readlink -f $p`
+		test -d "$dir" || continue
+		find $dir -type f \
+			\( \
+				-iname "*.mp3" -or \
+				-iname "*.ogg" -or \
+				-iname "*.flac" -or \
+				-iname "*.wav"  \
+			\) \
+			-exec printf "add %s\n" '{}' \; | \
+		tee -a $sadcache | \
+		nc -q 0 -U $sock
+	done < <(echo "$paths")
+	nc -q 0 -U $sock <<< "play"
+}
+
+### MAIN ###
+if test $# -eq 0; then
+	plycache || addapl
+	exit 0
+elif test $# -gt 2; then
+	echo "ERR: invalid number of arguments" >&2
+	exit 1
+fi
+args=1
+while getopts :cknpsfld:a:r action; do
+	case $action in
+	a)
+		args=`expr $args + 1`
+		eval paths="\$$args"
+		addapl ;;
+	c)	nc -q 0 -U $sock <<< "clear" ;;
+	k)	nc -q 0 -U $sock <<< "kill" ;;
+	n)	nc -q 0 -U $sock <<< "next" ;;
+	p)	nc -q 0 -U $sock <<< "prev" ;;
+	s)	nc -q 0 -U $sock <<< "stop" ;;
+	d)
+		args=`expr $args + 1`
+		eval args="\$$args"
+		nc -q 0 -U $sock <<< "remove $args" ;;
+	f)	nc -q 0 -U $sock <<< "pause" ;;
+	r)	nc -q 0 -U $sock <<< "random" ;;
+	l)	nc -q 0 -U $sock <<< "playlist" ;;
+	
+	*)	echo "Invalid argument" >&2 ;;
+	esac
+	args=`expr $args + 1`
+done
