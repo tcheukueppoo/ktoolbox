@@ -1,0 +1,9 @@
+[Unit]
+Description=SAD music player daemon
+
+[Service]
+ExecStart=/usr/local/bin/sad
+Restart=on-failure
+
+[Install]
+WantedBy=basic.target

@@ -1,0 +1,31 @@
+#!/usr/bin/env sh
+
+gpwd="$(pwd)"
+if test "$(basename gpwd)" = scripts; then
+	echo 'ERR: run it in scripts!'
+	exit 1
+fi
+
+# copy all executable scripts except me!
+mybin="$HOME/.local/bin"
+mkdir -p "${mybin%bin}"
+mkdir -p "$mybin"
+for i in *; do
+	if test "$i" != "${0#./}"; then
+		stest -qfx "$i" && cp -v ./"$i" "$mybin"
+	fi
+done
+
+# installing systemd/init services
+config="${XDG_CONFIG_HOME:-"$HOME/.config"}"
+mkdir -p "$config"
+
+if which systemd-run >/dev/null 2>&1; then
+	echo "installing systemd services"
+	test -d systemd || exit 1
+	cp -vr systemd "$config"
+else
+	echo "installing init services"
+	test -d init || exit 1
+	:
+fi
