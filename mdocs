@@ -1,0 +1,26 @@
+#!/usr/bin/env sh
+
+# search for docs
+
+if ! which mupdf &>/dev/null; then
+	echo "ERR: $0 depends on mupdf"
+	exit 1
+fi
+
+docsd='/mnt2/books'
+cache="${XDG_HOME_CACHE:-"$HOME/.cache"}"
+docache="${cache}/mdocs"
+
+test -d "$docsd" &>/dev/null || exit 1
+if test -z "$(cat $docache >/dev/null 2>&1)"; then
+	find $docsd -type f \
+		\( -iname '*.pdf' -or \
+			-iname '*.chm' -or \
+			-iname '*.djvu' -or \
+			-iname '*.epub' \
+		\) | tee $docache &>/dev/null
+fi
+
+doc="$(cat $docache | sed -n 's/^.*\/\(.*\)$/\1/p' | dmenu -l 20 -i)"
+doc="$(cat $docache | fgrep "$doc")"
+mupdf "$doc"
