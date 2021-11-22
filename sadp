@@ -1,7 +1,7 @@
 #!/usr/bin/env sh
 
 # config
-paths='/mnt2/media/musics/Sia:/mnt2/media/musics/NF:'
+paths='/mnt2/media/musics/:'
 sock='/tmp/sad-sock'
 cache="${XDG_HOME_CACHE:-"$HOME/.cache"}"
 sadcache="$cache/sadp"
@@ -11,16 +11,12 @@ if ! test -S $sock; then
 	exit 1
 fi
 
-plycache() {
-	if test -r "$sadcache"; then
-		cat "$sadcache" | nc -q 0 -U $sock
-		echo "play" | nc -q 0 -U $sock
-	else
-		return 1
-	fi
-}
-
 addapl() {
+	# checking for cache
+	if test -z "$(cat $sadcache >/dev/null 2>&1)"; then
+		cat "$sadcache" | nc -q 0 -U $sock
+		return
+	fi
 	local p dir
 	IFS=$':'
 	while read -r -d: p; do
@@ -34,41 +30,47 @@ addapl() {
 				-iname "*.wav"  \
 			\) \
 			-exec printf "add %s\n" '{}' \; | \
-		tee -a $sadcache | \
-		nc -q 0 -U $sock
+		tee -a $sadcache | nc -q 0 -U $sock
 	done < <(echo "$paths")
 	nc -q 0 -U $sock <<< "play"
 }
 
-### MAIN ###
-if test $# -eq 0; then
-	plycache || addapl
-	exit 0
-elif test $# -gt 2; then
+# options for controling sad daemon
+control() {
+	args=1
+	while getopts :cknpsfld:a:r action; do
+		case $action in
+		a|A)
+			args=`expr $args + 1`
+			eval paths="\$$args"
+			addapl ;;
+		c|C)	nc -q 0 -U $sock <<< "clear" ;;
+		k|K)	nc -q 0 -U $sock <<< "kill" ;;
+		n|N)	nc -q 0 -U $sock <<< "next" ;;
+		p|P)	nc -q 0 -U $sock <<< "prev" ;;
+		s|S)	nc -q 0 -U $sock <<< "stop" ;;
+		d|D)
+				args=`expr $args + 1`
+				eval args="\$$args"
+				nc -q 0 -U $sock <<< "remove $args" ;;
+		f|F)	nc -q 0 -U $sock <<< "pause" ;;
+		r|R)	nc -q 0 -U $sock <<< "random" ;;
+		l|L)	nc -q 0 -U $sock <<< "playlist" ;;
+		
+		*)	echo "Invalid argument" >&2 ;;
+		esac
+		args=`expr $args + 1`
+	done
+}
+
+##################
+##     Main     ##
+##################
+case $# in
+0)	addapl ;;
+2)	control "$@" ;;
+3)
+	test $# -gt 2; then
 	echo "ERR: invalid number of arguments" >&2
-	exit 1
-fi
-args=1
-while getopts :cknpsfld:a:r action; do
-	case $action in
-	a)
-		args=`expr $args + 1`
-		eval paths="\$$args"
-		addapl ;;
-	c)	nc -q 0 -U $sock <<< "clear" ;;
-	k)	nc -q 0 -U $sock <<< "kill" ;;
-	n)	nc -q 0 -U $sock <<< "next" ;;
-	p)	nc -q 0 -U $sock <<< "prev" ;;
-	s)	nc -q 0 -U $sock <<< "stop" ;;
-	d)
-		args=`expr $args + 1`
-		eval args="\$$args"
-		nc -q 0 -U $sock <<< "remove $args" ;;
-	f)	nc -q 0 -U $sock <<< "pause" ;;
-	r)	nc -q 0 -U $sock <<< "random" ;;
-	l)	nc -q 0 -U $sock <<< "playlist" ;;
-	
-	*)	echo "Invalid argument" >&2 ;;
-	esac
-	args=`expr $args + 1`
-done
+	exit 1 ;;
+esac
