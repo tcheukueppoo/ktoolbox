@@ -70,7 +70,6 @@ case $# in
 0)	addapl ;;
 2)	control "$@" ;;
 3)
-	test $# -gt 2; then
 	echo "ERR: invalid number of arguments" >&2
 	exit 1 ;;
 esac
