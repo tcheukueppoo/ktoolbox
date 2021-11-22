@@ -35,29 +35,30 @@ addapl() {
 	nc -q 0 -U $sock <<< "play"
 }
 
-# options for controling sad daemon
 control() {
 	args=1
 	while getopts :cknpsfld:a:r action; do
 		case $action in
 		a|A)
-			args=`expr $args + 1`
-			eval paths="\$$args"
-			addapl ;;
-		c|C)	nc -q 0 -U $sock <<< "clear" ;;
-		k|K)	nc -q 0 -U $sock <<< "kill" ;;
-		n|N)	nc -q 0 -U $sock <<< "next" ;;
-		p|P)	nc -q 0 -U $sock <<< "prev" ;;
-		s|S)	nc -q 0 -U $sock <<< "stop" ;;
+		     args=`expr $args + 1`
+		     eval paths="\$$args"
+		     addapl ;;
+		c|C) nc -q 0 -U $sock <<< "clear" ;;
+		k|K) nc -q 0 -U $sock <<< "kill" ;;
+		n|N) nc -q 0 -U $sock <<< "next" ;;
+		p|P) nc -q 0 -U $sock <<< "prev" ;;
+		s|S) nc -q 0 -U $sock <<< "stop" ;;
 		d|D)
-				args=`expr $args + 1`
-				eval args="\$$args"
-				nc -q 0 -U $sock <<< "remove $args" ;;
-		f|F)	nc -q 0 -U $sock <<< "pause" ;;
-		r|R)	nc -q 0 -U $sock <<< "random" ;;
-		l|L)	nc -q 0 -U $sock <<< "playlist" ;;
+		     args=`expr $args + 1`
+		     eval args="\$$args"
+			 nc -q 0 -U $sock <<< "remove $args" ;;
+		f|F) nc -q 0 -U $sock <<< "pause" ;;
+		r|R) nc -q 0 -U $sock <<< "random" ;;
+		l|L) nc -q 0 -U $sock <<< "playlist" ;;
 		
-		*)	echo "Invalid argument" >&2 ;;
+		*)
+		     echo "ERR: invalid argument(s)" >&2
+		     return 1 ;;
 		esac
 		args=`expr $args + 1`
 	done
@@ -67,9 +68,9 @@ control() {
 ##     Main     ##
 ##################
 case $# in
-0)	addapl ;;
-2)	control "$@" ;;
+0) addapl ;;
+2) control "$@" ;;
 3)
-	echo "ERR: invalid number of arguments" >&2
-	exit 1 ;;
+   echo "ERR: invalid number of arguments" >&2
+   exit 1 ;;
 esac
