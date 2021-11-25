@@ -19,6 +19,7 @@ addapl() {
 	fi
 	local p dir
 	IFS=$':'
+
 	while read -r -d: p; do
 		dir=`readlink -f $p`
 		test -d "$dir" || continue
