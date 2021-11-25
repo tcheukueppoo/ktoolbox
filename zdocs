@@ -1,21 +1,33 @@
 #!/usr/bin/env sh
+#
+# a simple script which finds for pdfs
+# and open them with zathura pdf viewer
 
-# search for docs
-
-if ! which zathura &>/dev/null; then
-	echo "ERR: $0 depends on zathura"
+if ! command -v zathura; then
+	printf 'install zathura first!'
 	exit 1
 fi
 
-docsd='/mnt2/books'
+case $# in
+0)	# default search directory
+	db='/mnt2/books' ;;
+1)	if ! test -d "$1"; then
+		printf '%s: %s is not a directory\n' "$0" "$1"
+		exit 1
+	fi
+	db="$1" ;;
+*)	printf '%s: max argument is 2, min argument is 2\n' "$0"
+esac
+
 cache="${XDG_HOME_CACHE:-"$HOME/.cache"}"
-docache="${cache}/zdocs"
+dcache="${cache}/zdocs"
 
-test -d "$docsd" &>/dev/null || exit 1
-if test -z "$(cat $docache >/dev/null 2>&1)"; then
-	find $docsd -type f -iname '*.pdf' | tee $docache &>/dev/null
+pdf="$(find $db -type f -iname '*.pdf' -print | tee "$dcache" | \
+		while read base; do
+			echo "$(basename "$base")"
+		done | dmenu -i -l 20)"
+
+if test -n "$pdf"; then
+	pdf="$(cat "$dcache" | fgrep "$pdf")"
+	zathura "$pdf"
 fi
-
-doc="$(cat $docache | sed -n 's/^.*\/\(.*\)$/\1/p' | dmenu -l 20 -i)"
-doc="$(cat $docache | fgrep "$doc")"
-test -n "$doc" && zathura "$doc"

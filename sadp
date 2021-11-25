@@ -57,15 +57,14 @@ addapl() {
 				-iname "*.wav"  \
 			\) \
 			-exec printf "add %s\n" '{}' \; | \
-		tee $sadcache | nc -q 0 -U $sock &>/dev/null
+		tee $sadcache | nc -q 0 -U $sock
 	done < <(echo "$paths")
 }
 
 control() {
 	local args=1
-	echo and here
+
 	while getopts :cknpsfld:a:r action; do
-		echo here is $action
 		case $action in
 		a|A)
 		     args=`expr $args + 1`
@@ -73,7 +72,7 @@ control() {
 		     addapl ;;
 		c|C) nc -q 0 -U $sock <<< "clear" ;;
 		k|K) nc -q 0 -U $sock <<< "kill" ;;
-		n|N) nc -q 0 -U $sock <<< "next" ; echo "I'm here";;
+		n|N) nc -q 0 -U $sock <<< "next" ;;
 		p|P) nc -q 0 -U $sock <<< "prev" ;;
 		s|S) nc -q 0 -U $sock <<< "stop" ;;
 		d|D)
@@ -85,18 +84,18 @@ control() {
 		l|L) nc -q 0 -U $sock <<< "playlist" ;;
 		
 		*)
-		     echo "ERR: invalid argument(s)" >&2
+		     echo "invalid option" >&2
 		     return 1 ;;
 		esac
 		args=`expr $args + 1`
 	done
 }
 
-## Main
+## main
 case $# in
-0) ucache || addapl ;;
-2) control "$@" ;;
-3)
-   echo "ERR: invalid number of arguments" >&2
+0) ucache || { addapl &>/dev/null; };;
+1|2) control "$@" ;;
+*)
+   echo "invalid number of arguments" >&2
    exit 1 ;;
 esac

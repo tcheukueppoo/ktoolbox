@@ -1,4 +1,10 @@
 #!/usr/bin/env sh
+#
+# installation program of all the scripts and services
+# expected to to be in this program's parent directory
+#
+# get more information here:
+#         <https://codeberg.com/tcheukueppo/scripts.git>
 
 gpwd="$(pwd)"
 if test "$(basename gpwd)" = scripts; then
@@ -9,11 +15,10 @@ fi
 # copy all executable scripts except me!
 echo 'installing scripts in $HOME/.local/bin'
 mybin="$HOME/.local/bin"
-mkdir -p "${mybin%bin}"
-mkdir -p "$mybin"
+mkdir -p "${mybin%bin}" && mkdir -p "$mybin"
 for i in *; do
 	if test "$i" != "${0#./}"; then
-		stest -qfx "$i" && cp -v ./"$i" "$mybin"
+		stest -qfx "$i" && cp -v "$i" "$mybin"
 	fi
 done
 
@@ -23,10 +28,8 @@ mkdir -p "$config"
 
 if which systemd-run >/dev/null 2>&1; then
 	echo "installing systemd services"
-	test -d systemd || exit 1
 	cp -vr systemd "$config"
 else
 	echo "installing init services"
-	test -d init || exit 1
 	:
 fi
