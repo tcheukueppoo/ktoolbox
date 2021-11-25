@@ -1,4 +1,10 @@
 #!/usr/bin/env sh
+#
+# sadp is use to control sad(simple audio daemon).
+# this script is part of
+#    <https://codeberg.org/tcheukueppo/scripts.git>
+#
+#                                  Author: kueppo
 
 # config
 paths='/mnt2/media/musics/:'
@@ -7,19 +13,39 @@ cache="${XDG_HOME_CACHE:-"$HOME/.cache"}"
 sadcache="$cache/sadp"
 
 if ! test -S $sock; then
-	echo "ERR: no unix domain socket at: ${sock}" >&2
+	echo "no unix domain socket at: ${sock}" >&2
 	exit 1
 fi
 
-addapl() {
-	# checking for cache
-	if test -z "$(cat $sadcache >/dev/null 2>&1)"; then
-		cat "$sadcache" | nc -q 0 -U $sock
-		return
+# checking for cache
+ucache() {
+	local lnr
+	local slnr
+
+	if test -f "$sadcache"; then
+		# file format check
+		lnr="$(cat $sadcache | wc -l)"
+		slnr="$(cat $sadcache | grep '^add .*\(mp3\|flac\|wav\|ogg\)$' | wc -l)"
+		if test $lnr != $slnr; then
+			echo "invalid file format at $cache" >&2
+			return 1
+		fi
+		# check if already added
+		lnr="$(nc -q 0 -U $sock <<< "playlist" | \
+			grep -v '^OK' | grep -v '^ERR' | wc -l)"
+		if test $lnr -eq 0; then
+			cat "$sadcache" | nc -q 0 -U $sock &>/dev/null
+		fi
+		return 0
 	fi
+	return 1
+}
+
+addapl() {
 	local p dir
 	IFS=$':'
 
+	nc -q 0 -U $sock <<< "clear"
 	while read -r -d: p; do
 		dir=`readlink -f $p`
 		test -d "$dir" || continue
@@ -31,14 +57,15 @@ addapl() {
 				-iname "*.wav"  \
 			\) \
 			-exec printf "add %s\n" '{}' \; | \
-		tee -a $sadcache | nc -q 0 -U $sock
+		tee $sadcache | nc -q 0 -U $sock &>/dev/null
 	done < <(echo "$paths")
-	nc -q 0 -U $sock <<< "play"
 }
 
 control() {
-	args=1
+	local args=1
+	echo and here
 	while getopts :cknpsfld:a:r action; do
+		echo here is $action
 		case $action in
 		a|A)
 		     args=`expr $args + 1`
@@ -46,7 +73,7 @@ control() {
 		     addapl ;;
 		c|C) nc -q 0 -U $sock <<< "clear" ;;
 		k|K) nc -q 0 -U $sock <<< "kill" ;;
-		n|N) nc -q 0 -U $sock <<< "next" ;;
+		n|N) nc -q 0 -U $sock <<< "next" ; echo "I'm here";;
 		p|P) nc -q 0 -U $sock <<< "prev" ;;
 		s|S) nc -q 0 -U $sock <<< "stop" ;;
 		d|D)
@@ -65,11 +92,9 @@ control() {
 	done
 }
 
-##################
-##     Main     ##
-##################
+## Main
 case $# in
-0) addapl ;;
+0) ucache || addapl ;;
 2) control "$@" ;;
 3)
    echo "ERR: invalid number of arguments" >&2

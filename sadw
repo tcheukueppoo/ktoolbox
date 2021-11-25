@@ -7,6 +7,6 @@ song=$(grep -v '^OK$' <(echo playlist | nc -q 0 -U $sock) | \
 		grep -v '^ERR$' | tee $temp | sed -n 's/^.*\/\(.*\)$/\1/p' | \
 		dmenu -i -l 10 -p "Search: ") 
 if test x"$song" != x""; then
-	id=$(cat $temp | fgrep "$song" | cut -d: -f1)
+	id=$(cat $temp | fgrep "$song" | cut -d: -f1 | head -n 1)
 	test -n $id && printf 'play %s\n' "$id" | nc -q 0 -U "$sock"
 fi
