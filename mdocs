@@ -16,7 +16,7 @@ case $# in
 		exit 1
 	fi
 	db="$1" ;;
-*)	printf '%s: max argument is 2, min argument is 2\n' "$0"
+*)	printf '%s: max argument is 2, min argument is 2\n' "$0" ;;
 esac
 
 cache="${XDG_HOME_CACHE:-"$HOME/.cache"}"

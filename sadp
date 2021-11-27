@@ -93,9 +93,11 @@ control() {
 
 ## main
 case $# in
-0) ucache || { addapl &>/dev/null; };;
-1|2) control "$@" ;;
-*)
-   echo "invalid number of arguments" >&2
-   exit 1 ;;
+0)
+	ucache || { addapl &>/dev/null; } ;;
+1|2)
+	control "$@" ;;
+*) 
+	echo "invalid number of arguments" >&2
+	exit 1 ;;
 esac

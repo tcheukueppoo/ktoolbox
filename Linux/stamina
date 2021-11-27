@@ -16,7 +16,7 @@ if test $(id -u) -ne 0; then
 	exit 1
 fi
 
-declare -x null='&>/dev/null'
+null='&>/dev/null' && export null
 
 usage() {
 cat<<EOF
@@ -44,7 +44,7 @@ check() {
 	command -v NetworkManager >/dev/null || toins="NetworkManager${toins:+, }${toins}"
 	if test -n "$toins"; then
 		echo failed
-		if grep -q ',' <(echo $toins); then
+		if echo $toins | fgrep -q ','; then
 			printf '%s and %s are needed\n' "${toins%,*}" "${toins##* }"
 		else
 			printf '%s is needed\n' "${toins}"
@@ -98,7 +98,7 @@ pppcon() {
 	test $timeout -lt 8 && echo ok || { echo failed; return 1; }
 	# get modem index
 	index="$(mmcli -L | cut -d/ -f6 | cut -d ' ' -f1)"
-	if ! grep -q '[0-9]\{1,\}' <(echo "$index"); then
+	if ! echo "$index" | grep -q '[0-9]\{1,\}'; then
 		echo 'could not get modem index' >&2
 		return 1
 	fi
@@ -135,7 +135,7 @@ kilcon() {
 	printf 'attempting to delete the connection ...'
 	gguid=$(nmcli connection show | grep '^Stamina ' | \
 		sed -n 's/^[^ ]\+ \+\([^ ]\+\).\+/\1/p')
-	eval nmcli connection delete "$gguid" ${null} && echo ok || echo failed
+	nmcli connection delete "$gguid"  && echo ok || echo failed
 	return 0
 }
 
