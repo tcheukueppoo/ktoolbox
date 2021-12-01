@@ -18,9 +18,18 @@ mybin="$HOME/.local/bin"
 mkdir -p "${mybin%bin}" && mkdir -p "$mybin"
 for i in *; do
 	if test "$i" != "${0#./}"; then
-		stest -qfx "$i" && cp -v "$i" "$mybin"
+		if test -f "$i"; then
+			test -x "$i" && cp -v "$i" "$mybin"
+		fi
 	fi
 done
+
+# Os specific scripts
+case "$(uname)" in
+Linux) cp -v Linux/* "$mybin" 2>/dev/null;;
+BSD) cp -v BSD/* "$mybin" 2>/dev/null;;
+*) :;;
+esac
 
 # installing systemd/init services
 config="${XDG_CONFIG_HOME:-"$HOME/.config"}"
@@ -28,8 +37,8 @@ mkdir -p "$config"
 
 if which systemd-run >/dev/null 2>&1; then
 	echo "installing systemd services"
-	cp -vr systemd "$config"
+	test -d Linux/systemd && cp -rv Linux/systemd "$config"
 else
-	echo "installing init services"
+	echo "installing init rc services"
 	:
 fi

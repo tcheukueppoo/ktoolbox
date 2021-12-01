@@ -4,19 +4,19 @@
 # and open them with mupdf pdf viewer
 
 if ! command -v mupdf; then
-	printf 'install mupdf first!'
+	echo 'install mupdf first!' >&2
 	exit 1
 fi
 
+db='/mnt2/books'
+
 case $# in
-0)	# default search directory
-	db='/mnt2/books' ;;
 1)	if ! test -d "$1"; then
-		printf '%s: %s is not a directory\n' "$0" "$1"
+		echo "$0: $1 is not a directory" >&2
 		exit 1
 	fi
 	db="$1" ;;
-*)	printf '%s: max argument is 2, min argument is 2\n' "$0" ;;
+*)	echo "$0 takes only one arguments" >&2 ;;
 esac
 
 cache="${XDG_HOME_CACHE:-"$HOME/.cache"}"
@@ -28,13 +28,13 @@ pdf="$(find $db -type f \
 			-iname '*.chm' -or \
 			-iname '*.cbz' -or \
 			-iname '*.epub' \
-		\)
+		\) \
 		 -print | tee $dcache | \
 		while read base; do
 			echo "$(basename "$base")"
 		done | dmenu -i -l 20)"
 
 if test -n "$pdf"; then
-	pdf="$(cat $dcache | fgrep "$pdf")"
+	pdf="$(cat $dcache | grep "/$pdf$" | head -n1)"
 	mupdf "$pdf"
 fi
