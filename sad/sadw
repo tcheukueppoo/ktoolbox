@@ -6,7 +6,6 @@
 #
 #                                  Author: kueppo
 
-
 sock='/tmp/sad-sock'
 temp='/tmp/plist'
 

@@ -16,5 +16,5 @@ while pgrep -x sad &>/dev/null; do
 	if test "$(nc -U -q0 /tmp/sad-sock <<< "status songid"| fgrep songid)" != "$curs"; then
 		nc -U -q0 /tmp/sad-sock <<< "play ${curs##* }"
 	fi
-	sleep 2
+	sleep 0.5
 done
