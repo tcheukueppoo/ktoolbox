@@ -13,7 +13,7 @@ cache="${XDG_HOME_CACHE:-"$HOME/.cache"}"
 sadcache="$cache/sadp"
 
 if ! test -S $sock; then
-	echo "no unix domain socket at: ${sock}" >&2
+	echo "no unix domain socket ${sock}" >&2
 	exit 1
 fi
 
@@ -23,10 +23,10 @@ ucache() {
 	local slnr
 
 	if test -f "$sadcache"; then
-		# file format check
+		# check file format
 		lnr="$(cat $sadcache | wc -l)"
 		slnr="$(cat $sadcache | grep '^add .*\(mp3\|flac\|wav\|ogg\)$' | wc -l)"
-		if test $lnr != $slnr; then
+		if test $lnr -ne $slnr; then
 			echo "invalid file format at $cache" >&2
 			return 1
 		fi
@@ -72,8 +72,12 @@ control() {
 		     addapl ;;
 		c|C) nc -q 0 -U $sock <<< "clear" ;;
 		k|K) nc -q 0 -U $sock <<< "kill" ;;
-		n|N) nc -q 0 -U $sock <<< "next" ;;
-		p|P) nc -q 0 -U $sock <<< "prev" ;;
+		n|N) 
+			 pkill -fu "$USER" '/sadr$'
+			 nc -q 0 -U $sock <<< "next" ;;
+		p|P)
+			 pkill -fu "$USER" '/sadr$'
+			 nc -q 0 -U $sock <<< "prev" ;;
 		s|S) nc -q 0 -U $sock <<< "stop" ;;
 		d|D)
 		     args=`expr $args + 1`
@@ -82,7 +86,6 @@ control() {
 		f|F) nc -q 0 -U $sock <<< "pause" ;;
 		r|R) nc -q 0 -U $sock <<< "random" ;;
 		l|L) nc -q 0 -U $sock <<< "playlist" ;;
-		
 		*)
 		     echo "invalid option" >&2
 		     return 1 ;;

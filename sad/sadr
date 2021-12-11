@@ -1,0 +1,20 @@
+#!/usr/bin/env sh
+#
+# A naive script to endlessly play the current song
+# this script is part of
+#    <https://codeberg.org/tcheukueppo/scripts.git>
+#
+#                                  Author: kueppo
+
+curs="$(nc -U -q0 /tmp/sad-sock <<< "status songid" | fgrep songid)"
+if test -z "$curs"; then
+	printf "%s: couldn't get current song id" "$0"
+	exit 1
+fi
+
+while pgrep -x sad &>/dev/null; do
+	if test "$(nc -U -q0 /tmp/sad-sock <<< "status songid"| fgrep songid)" != "$curs"; then
+		nc -U -q0 /tmp/sad-sock <<< "play ${curs##* }"
+	fi
+	sleep 2
+done
