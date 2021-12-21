@@ -25,7 +25,7 @@ dcache="${cache}/zdocs"
 pdf="$(find $db -type f -iname '*.pdf' -print | tee "$dcache" | \
 		while read base; do
 			echo "$(basename "$base")"
-		done | dmenu -i -l 10)"
+		done | dmenu -c -i -l 10)"
 
 if test -n "$pdf"; then
 	# if there are PDFs having the same name

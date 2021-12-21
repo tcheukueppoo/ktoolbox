@@ -9,9 +9,9 @@
 sock='/tmp/sad-sock'
 temp='/tmp/plist'
 
-song=$(echo playlist | nc -q0 -U $sock | grep -v '^OK' | \
+song="$(echo playlist | nc -q0 -U $sock | grep -v '^OK' | \
 		grep -v '^ERR' | tee $temp | sed -n 's/^.*\/\(.*\)$/\1/p' | \
-		sort | dmenu -i -l 10) 
+		sort | dmenu -c -i -l 10)"
 if test x"$song" != x""; then
 	pkill -fu "$USER" '/sadr$'
 	id=$(cat $temp | fgrep "$song" | cut -d: -f1 | head -n 1)

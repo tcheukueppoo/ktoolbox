@@ -2,4 +2,4 @@
 
 set -- zdocs mdocs
 PATH="$PATH:$HOME/.local/bin" && export PATH
-while test $# -ne 0; do printf '%s\n' "$1"; shift; done | dmenu -p 'Run ' | sh
+while test $# -ne 0; do printf '%s\n' "$1"; shift; done | dmenu -b -p 'Run ' | sh

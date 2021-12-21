@@ -34,7 +34,7 @@ ucache() {
 		lnr="$(nc -q 0 -U $sock <<< "playlist" | \
 			grep -v '^OK' | grep -v '^ERR' | wc -l)"
 		if test $lnr -eq 0; then
-			cat "$sadcache" | nc -q 0 -U $sock &>/dev/null
+			cat "$sadcache" | nc -q0 -U $sock &>/dev/null
 		fi
 		return 0
 	fi
@@ -58,7 +58,7 @@ addapl() {
 				-iname "*.wav"  \
 			\) \
 			-exec printf "add %s\n" '{}' \; | \
-		tee $sadcache | nc -q 0 -U $sock
+		tee $sadcache | nc -q0 -U $sock
 	done
 }
 
@@ -70,7 +70,7 @@ control() {
 		a|A)
 		     args=`expr $args + 1`
 		     eval paths="\$$args"
-		     addapl ;;
+		     addapl &>/dev/null ;;
 		c|C) nc -q 0 -U $sock <<< "clear" ;;
 		k|K) nc -q 0 -U $sock <<< "kill" ;;
 		n|N) 

@@ -11,10 +11,11 @@ if test -z "$curs"; then
 	printf "%s: couldn't get current song id" "$0"
 	exit 1
 fi
-
-while pgrep -x sad &>/dev/null; do
-	if test "$(nc -U -q0 /tmp/sad-sock <<< "status songid"| fgrep songid)" != "$curs"; then
+pid="$(pidof sad)"
+while test -d "/proc/$pid"; do
+	nid="$(nc -U -q0 /tmp/sad-sock <<< "status songid"| fgrep songid)" 
+	if test "$nid" != "$curs"; then
 		nc -U -q0 /tmp/sad-sock <<< "play ${curs##* }"
 	fi
-	sleep 0.5
+	sleep 0.1
 done

@@ -32,7 +32,7 @@ pdf="$(find $db -type f \
 		 -print | tee $dcache | \
 		while read base; do
 			echo "$(basename "$base")"
-		done | dmenu -i -l 20)"
+		done | dmenu -c -i -l 20)"
 
 if test -n "$pdf"; then
 	pdf="$(cat $dcache | grep "/$pdf$" | head -n1)"
