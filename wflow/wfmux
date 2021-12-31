@@ -1,0 +1,94 @@
+#!/usr/bin/env sh
+#
+#	wfmux is a script to build an incredible workflow
+#	with fzf, tmux, and (vim/vis/kak/nvim). This script
+#	is part of
+#		<https://codeberg.org/tcheukueppo/scripts.git>
+#
+#										Author: kueppo
+
+check() {
+	local ret=false
+
+	if ! command -v tmux &>/dev/null; then
+		printf 'tmux not installed'
+		ret=true
+	fi
+	if ! tmux list-sessions &>/dev/null; then
+		printf 'no tmux sessions'
+		ret=true
+	fi
+	${ret} && return 1
+	return 0
+}
+
+# the maximum number of panes for each window
+# is 2 and panes of name $SHELL are automatically
+# used for new commands.
+runcmd() {
+	local buf="$1"
+	local npanes winame temp
+	local sh=${SHELL:-bash}
+	local winid="$(tmux list-windows | fgrep '(active)' | cut -d: -f1)"
+
+	sh="${sh##*/}"
+	npanes="$(tmux list-panes -t$winid | wc -l)"
+	winame="$(tmux list-panes -t$winid -F'#{pane_current_command}:#P:#{pane_active}')"
+	if (( npanes == 1 )); then
+		if echo "$winame" | fgrep -qv "$sh:"; then
+			tmux split-window -h -t$winid
+		fi
+		tmux send-keys "$buf" C-m
+	elif (( npanes == 2 )); then
+		npanes="$(echo "$winame" | fgrep "$sh:" | wc -l)"
+		if (( npanes == 1 )); then
+			winame="$(echo "$winame" | fgrep "$sh:" | cut -d: -f2)"
+			tmux send-keys -t$winid.$winame "$buf" C-m
+		elif (( npanes == 2 )); then
+			winame="$(echo "$winame" | grep '1$' | cut -d: -f2)"
+			tmux send-keys -t$winid.$winame "$buf" C-m
+		else
+			tmux new-window
+			tmux send-keys "$buf" C-m
+		fi
+	fi
+}
+
+outbuf() {
+	local proj gitdir buf
+	local cachedir="${XDG_CACHE_HOME:-$HOME/.cache}"
+	local cache="$cachedir/wflow-commands"
+
+	# the session's name should be the name of your project
+	proj="$(tmux list-sessions -F'#S:#{session_activity}' | sort -b -t ':' -k '2,2n' | tail -n1 | cut -d: -f1)"
+	proj="$(echo "$proj" | tr _ . | tr '\034' _)"
+	gitdir="$HOME/projects/$proj/.git"
+	proj="${gitdir%%/.git}"
+	outpf() {
+		if [ -d "$gitdir" ]; then
+			cd "$proj"
+			eval find "*" -type f -print
+		fi
+		test -f "$cache" && cat "$cache"
+	}
+	buf="$(outpf | fzf)"
+	[ -n "$buf" ] && printf "%s/%s" "$proj" "$buf"
+}
+
+# run this script within a tmux session, it's gonna
+# open a popup window for you to fuzzy select commands/buffers
+# to run/edit with your favorite editor.
+if check; then
+	buf="$(outbuf)"
+	edit=${EDITOR:-vim}
+
+	if [ -n "$buf" ]; then
+		if [ -f "$buf" ]; then
+			# close the pane if the file has already been opened.
+			runcmd "$edit $buf"
+		else
+			# programs that last long, e.g servers.
+			runcmd "$buf"
+		fi
+	fi
+fi

@@ -14,6 +14,6 @@ song="$(echo playlist | nc -q0 -U $sock | grep -v '^OK' | \
 		sort | dmenu -c -i -l 10)"
 if test x"$song" != x""; then
 	pkill -fu "$USER" '/sadr$'
-	id=$(cat $temp | fgrep "$song" | cut -d: -f1 | head -n 1)
-	test -n $id && printf 'play %s\n' "$id" | nc -q0 -U "$sock"
+	id="$(cat $temp | fgrep "$song" | cut -d: -f1 | head -n 1)"
+	test -n "$id" && printf 'play %s\n' "$id" | nc -q0 -U "$sock"
 fi

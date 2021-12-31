@@ -1,0 +1,38 @@
+#!/usr/bin/env sh
+#
+# chwal is a wallpaper changer script which is
+# to be run by crond.
+# This script is part of
+#    <https://codeberg.org/tcheukueppo/scripts.git>
+#
+#                                  Author: kueppo
+
+command -v feh || exit 1
+command -v xrandr || exit 1
+
+imgfle='/mnt2/media/images'
+case $# in
+0)	: ;;
+1)
+	imgfle="$(readlink -f "$1")"
+	[ ! -d "$imgfle" ] && exit 1 ;;
+*)	exit 1 ;;
+esac
+
+findwl() {
+	find "$imgfle" -type f -maxdepth 2 \( \
+		-iname "*.jpg" -or \
+		-iname "*.png" -or \
+		-iname "*.jpeg" \
+	\)
+}
+
+xrandr --listmonitors | fgrep -vi monitors | cut -d: -f1 | \
+while read index; do
+	newimg="$(findwl | shuf -n1)"
+	while [ "$(cat /tmp/current_img)" == "$newimg" ]; do
+		newimg="$(findwl | shuf -n1)"
+	done
+	echo "$newimg" > /tmp/current_img
+	feh --no-fehbg --bg-fill --xinerama-index ${index# } "$newimg"
+done
