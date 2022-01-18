@@ -3,26 +3,32 @@
 # a simple script which finds for pdfs
 # and open them with zathura pdf viewer
 
-if ! command -v zathura; then
-	echo 'install zathura first!' >&2
-	exit 1
-fi
+func_exit_with_status ()
+{
+	eval exit $1
+}
 
-db='/mnt2/books'
+command -v zathura >/dev/null 2>&1 || {
+	printf 'install zathura first!'
+	func_exit_with_status 1
+}
 
+pdf_dir='/mnt2/books'
 case $# in
-1)	if ! test -d "$1"; then
-		echo "$0: $1 is not a directory" >&2
-		exit 1
-	fi
-	db="$1" ;;
-*)	echo "$0 takes only one arguments" >&2 ;;
+1)	test -d "$1" || {
+		printf '%s: %s is not a directory' "$0" "$1"
+		func_exit_with_status 1
+	}
+	pdf_dir="$1"
+	;;
+*)	printf '%s: run zdocs /path/to/dir/ ' "$0"
+	;;
 esac
 
 cache="${XDG_HOME_CACHE:-"$HOME/.cache"}"
 dcache="${cache}/zdocs"
 
-pdf="$(find $db -type f -iname '*.pdf' -print | tee "$dcache" | \
+pdf="$(find "$pdf_dir" -type f -iname '*.pdf' -print | tee "$dcache" | \
 		while read base; do
 			echo "$(basename "$base")"
 		done | dmenu -c -i -l 10)"

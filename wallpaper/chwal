@@ -12,14 +12,18 @@ command -v xrandr || exit 1
 
 imgfle='/mnt2/media/images'
 case $# in
-0)	: ;;
+0)
+	: ;;
 1)
 	imgfle="$(readlink -f "$1")"
-	[ ! -d "$imgfle" ] && exit 1 ;;
-*)	exit 1 ;;
+	[ ! -d "$imgfle" ] && exit 1
+	;;
+*)	exit 1
+	;;
 esac
 
-findwl() {
+findwl ()
+{
 	find "$imgfle" -type f -maxdepth 2 \( \
 		-iname "*.jpg" -or \
 		-iname "*.png" -or \

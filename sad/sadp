@@ -6,102 +6,103 @@
 #
 #                                  Author: kueppo
 
-# config
-paths='/mnt2/media/musics/:'
+# config vars
 sock='/tmp/sad-sock'
-cache="${XDG_HOME_CACHE:-"$HOME/.cache"}"
-sadcache="$cache/sadp"
+mudirs='/mnt2/media/musics/'
 
-if ! test -S $sock; then
-	echo "no unix domain socket ${sock}" >&2
-	exit 1
-fi
+cachedir="${XDG_HOME_CACHE:-"$HOME/.cache"}"
+cache="$cachedir/sadp"
 
-# checking for cache
-ucache() {
-	local lnr
-	local slnr
-
-	if test -f "$sadcache"; then
-		# check file format
-		lnr="$(cat $sadcache | wc -l)"
-		slnr="$(cat $sadcache | grep '^add .*\(mp3\|flac\|wav\|ogg\)$' | wc -l)"
-		if test $lnr -ne $slnr; then
-			echo "invalid file format at $cache" >&2
-			return 1
-		fi
-		# check if already added
-		lnr="$(nc -q 0 -U $sock <<< "playlist" | \
-			grep -v '^OK' | grep -v '^ERR' | wc -l)"
-		if test $lnr -eq 0; then
-			cat "$sadcache" | nc -q0 -U $sock &>/dev/null
-		fi
-		return 0
+func_exitprog ()
+{
+	if test ! -S $sock ; then
+		printf 'no unix domain socket %s\n' "$sock"
+		return 1
 	fi
-
-	return 1
 }
 
-addapl() {
-	local p dir
-	IFS=$':'
+# to find for media files, you have to manually delete the cache.
+func_use_cache ()
+{
+	test -f "$cache" || return 1
 
-	nc -q 0 -U $sock <<< "clear"
-	echo "$paths" | while read -r -d: p; do
-		dir=`readlink -f $p`
-		test -d "$dir" || continue
-		find "$dir" -type f \
-			\( \
-				-iname "*.mp3" -or \
-				-iname "*.ogg" -or \
-				-iname "*.flac" -or \
-				-iname "*.wav"  \
-			\) \
-			-exec printf "add %s\n" '{}' \; | \
-		tee $sadcache | nc -q0 -U $sock
-	done
+	local lnr slnr
+	lnr=`cat "$cache" | wc -l`
+	slnr=`cat "$cache" | grep '^add .\(mp3\|flac\|wav\|ogg\)$' | wc -l`
+
+	# check file format
+	if test $lnr -ne $slnr; then
+		printf '%s: invalid file format\n' "$cache" >&2
+		return 1
+	fi
+	lnr=`nc -q 0 -U $sock <<< 'playlist' | grep -v '^OK' | grep -v '^ERR' | wc -l`
+	# check if already added
+	if test $lnr -eq 0; then
+		cat "$cache" | nc -q0 -U $sock &>/dev/null
+	fi
 }
 
-control() {
-	local args=1
+func_add_playlist ()
+{
+	local path once=0
 
-	while getopts :cknpsfld:a:r action; do
+	# clear the playlist before adding anything
+	func_search_add ()
+	{
+		local criter='-iname "*.mp3" -or -iname "*.ogg" -or -iname "*.flac" -or -iname "*.wav"'
+
+		while read -r path; do
+			path=`readlink -f $path`
+			test -d "$path" && {
+				if test $once -eq 0 ; then
+					nc -q 0 -U $sock <<< 'clear'
+					once=1
+				fi
+			} || continue
+			eval find "$path" -type f $criter -exec printf 'add %s\n' '{}' \; | \
+			tee $cache | nc -q0 -U $sock
+		done
+	}
+	printf '%s' "$mudirs" | tr ':' '\n' | func_search_add
+}
+
+func_control_sad ()
+{
+	while getopts ':cknpsfld:a:r' action; do
 		case $action in
 		a|A)
-		     args=`expr $args + 1`
-		     eval paths="\$$args"
-		     addapl &>/dev/null ;;
-		c|C) nc -q 0 -U $sock <<< "clear" ;;
-		k|K) nc -q 0 -U $sock <<< "kill" ;;
+			paths="$OPTARG"
+			func_addlist &>/dev/null
+			;;
 		n|N) 
-			 pkill -fu "$USER" '/sadr$'
-			 nc -q 0 -U $sock <<< "next" ;;
+			pkill -fu "$USER" '/sadr$'
+			nc -q0 -U $sock <<< 'next'
+			;;
 		p|P)
-			 pkill -fu "$USER" '/sadr$'
-			 nc -q 0 -U $sock <<< "prev" ;;
-		s|S) nc -q 0 -U $sock <<< "stop" ;;
-		d|D)
-		     args=`expr $args + 1`
-		     eval args="\$$args"
-			 nc -q 0 -U $sock <<< "remove $args" ;;
-		f|F) nc -q 0 -U $sock <<< "pause" ;;
-		r|R) nc -q 0 -U $sock <<< "random" ;;
-		l|L) nc -q 0 -U $sock <<< "playlist" ;;
+			pkill -fu "$USER" '/sadr$'
+			nc -q0 -U $sock <<< 'prev'
+			;;
+		d|D) nc -q0 -U $sock <<< "remove $OPTARG" ;;
+		c|C) nc -q0 -U $sock <<< 'clear' ;;
+		k|K) nc -q0 -U $sock <<< 'kill' ;;
+		s|S) nc -q0 -U $sock <<< 'stop' ;;
+		f|F) nc -q0 -U $sock <<< 'pause' ;;
+		r|R) nc -q0 -U $sock <<< 'random' ;;
+		l|L) nc -q0 -U $sock <<< 'playlist' ;;
 		*)
-		     echo "invalid option" >&2
-		     return 1 ;;
+			echo 'invalid option' >&2
+			return 1
+			;;
 		esac
-		args=`expr $args + 1`
 	done
 }
 
-## main
 case $# in
 0)
-	ucache || { addapl &>/dev/null; } ;;
+	func_ucache && func_add_playlist &>/dev/null ;;
 1|2)
-	control "$@" ;;
-*) 
-	echo "invalid number of arguments" >&2
+	func_control_sad "$@" ;;
+*)  
+	printf 'invalid number of arguments' >&2
 	exit 1 ;;
 esac

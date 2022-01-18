@@ -1,5 +1,8 @@
 #!/usr/bin/env sh
 
-set -- zdocs mdocs
-PATH="$PATH:$HOME/.local/bin" && export PATH
-while test $# -ne 0; do printf '%s\n' "$1"; shift; done | dmenu -b -p 'Run ' | sh
+appath "$HOME/.local/bin"
+test $? -eq 0 && set -- zdocs mdocs
+while test $# -ne 0; do
+	printf '%s\n' "$1"
+	shift
+done | dmenu -b -p 'Run ' | sh
