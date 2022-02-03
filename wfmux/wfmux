@@ -1,6 +1,6 @@
 #!/bin/sh
 #
-# Copyright (C) 2022 Free Software Foundation, Inc.
+# Copyright (C) 2022 kueppo, <kueppo@paranoid.cm>
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -135,32 +135,26 @@ func_opentmux ()
 	# any option and escape characters.
 	echo
 	echo '- Enter the name of your new tmux session'
-	echo '- Type F<Return> to select your projects'
-	echo '- Type D<Return> to avoid tmux'
-	printf ": "
+	echo '- Type f<Return> to select your projects'
+	echo '- Type <Return> to avoid tmux'
+	printf ': '
 
 	read answer && tput clear
 	case "$answer" in
-	D|d)
-		: avoid tmux
-		;;
 	F|f)
  		project=`ls -F "$plist" | sed -n 's#\(.*\)/$#\1#p' | eval $menu`
+		test -z "$project" && return
  		if test -d "${plist%/}/$project"; then
 	 		project=`echo "$project" | tr _ '\034' | tr . _`
 			test -f "$cache" && stag=`cat "$cache" | sort -u | grep "^$project:" | cut -d: -f2`
 			if test -z "$stag"; then
-				stag=$(
-					IFS=$':' && export IFS
-					for itag in $tags; do echo "$itag"; done | eval $menu
-				)
+				stag=$(echo "$tags" | tr ':' '\n' | eval $menu)
 				test -z "$stag" && return
-			fi
-	 		tmux has-session -t "$project-$stag" >/dev/null 2>&1
-			if test $? -eq 0; then
-				tmux attach -t "$project-$stag"
-	 		elif test $? -ne 0; then
 				echo "$project:$stag" >> "$cache"
+			fi
+	 		if (tmux has-session -t "$project-$stag") >/dev/null 2>&1; then
+				tmux attach -t "$project-$stag"
+	 		else
 				tmux new-session -s "$project-$stag"
 			fi
  		fi
@@ -242,22 +236,18 @@ func_openfile ()
 	test -z "$buffer" && return
 	case "$buffer" in
 	*.mp4 | *.ogg | *.mp3 | *.flac | *.mkv | *.avi | *.m4v | *.mpeg | *.mpg | *.webm | *.mov | *.wav | *.flv | *.wma)
-		func_installed "$mediaplayer" && prog="$mediaplayer"
-		;;
+		func_installed "$mediaplayer" && prog="$mediaplayer" ;;
 	*.png | *.jpeg | *.jpg | *.gif | *.xpm | *.bmp)
-		func_installed "$imageviewer" && prog="$imageviewer"
-		;;
+		func_installed "$imageviewer" && prog="$imageviewer" ;;
 	*.pdf | *.epub | *.djvu)
-		func_installed "$pdfviewer" && prog="$pdfviewer"
-		;;
+		func_installed "$pdfviewer" && prog="$pdfviewer" ;;
 	*)
 		func_installed "$editor" && prog="$editor"
 		set -- vis kak nvim
 		while test $# -ne 0 && test -z "$prog"; do
 			func_installed "$1" && prog="$1"
 			shift
-		done
-		;;
+		done ;;
 	esac
 	if test -n "$prog"; then
 		aprog=`echo "$aprog" | sed -n "s,^open \(.*\),$prog \1,p"`
@@ -265,32 +255,25 @@ func_openfile ()
 	fi
 }
 
-func_main ()
-{
-	while getopts :ucf args; do
-		case "$args" in
-		u)
-			func_openfile ;;
-		c)
-			func_runit ;;
-		f)
-			func_opentmux ;;
-		*)
-			echo "$USAGE" ;;
-		esac
-	done
-}
-
 func_setmenu
 func_parseconfig || exit 1
-
-test -z "$menu" && {
+if [ -z "$menu" ]; then
 	echo "$0: No menu were found, possible menus are fzf, fzy, or dmenu." >&2
 	exit 1
-}
-test -d "$plist" || {
+elif [ ! -d "$plist" ]; then
 	echo "$0: directory '$plist' doesn't exit" >&2
 	exit 1
-}
+fi
 
-func_main "$@"
+while getopts :ucf args; do
+	case "$args" in
+	u)
+		func_openfile ;;
+	c)
+		func_runit ;;
+	f)
+		func_opentmux ;;
+	*)
+		echo "$USAGE" ;;
+	esac
+done

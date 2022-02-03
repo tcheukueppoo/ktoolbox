@@ -1,108 +1,175 @@
-#!/usr/bin/env sh
+#!/bin/sh
 #
-# sadp is use to control sad(simple audio daemon).
-# this script is part of
-#    <https://codeberg.org/tcheukueppo/scripts.git>
-#
-#                                  Author: kueppo
+# See LICENSE file for copyright and license details.
 
-# config vars
-sock='/tmp/sad-sock'
-mudirs='/mnt2/media/musics/'
+sock="/tmp/sad-sock"
 
-cachedir="${XDG_HOME_CACHE:-"$HOME/.cache"}"
-cache="$cachedir/sadp"
+# Dependencies
+{	command -v sad || exit 1
+	command -v nc || exit 1
+	test -S "$sock" && pgrep -x sad || exit 1
+} &>/dev/null
 
-func_exitprog ()
+cache_dir="${XDG_HOME_CACHE:"$HOME/.cache"}"
+cache="$cache_dir/sad.pl"
+
+func_usage ()
 {
-	if test ! -S $sock ; then
-		printf 'no unix domain socket %s\n' "$sock"
-		return 1
+	cat <<-_EOF_
+	usage: sadp [OPTION]
+	Control Simple Audio Daemon (S.A.D)
+
+	Invoking sadp with no arugments opens 
+	  --add=dir1,dir2,...  Find under dirN for media files (mp3, ogg, flac and wav) add
+	                       add them to the sad playlist.
+	  --search=dmenu       Search for songs, available menus are dmenu, fzf, and fzy.
+	  --clear              Clear playlist.
+	  --kill               Kill the audio daemon.
+	  --pause              Toggle pause.
+	  --repeat             Toggle repeat of the current playing song.
+	  --next               Play next song.
+	  --previous           Play previous song.
+	  --help               Display this help message.
+	_EOF_
+}
+
+func_snc () { nc -N -U "$sock" | grep -v '^OK$' | grep -v '^ERR$'; }
+
+func_no_metadata ()
+{
+	basefile=$( basename "$1" )
+	printf '%d:%s' "$2" "$basefile"
+}
+
+func_with_metadata ()
+{
+	cat "$1" | awk '
+		BEGIN { FS = "[[:space:]]*:[[:space:]]*" }
+		/^Input #[[:digit:]],/ {
+			match($0, "'"'"'.+'"'"':")
+			meta["filename"] = substr($0, RSTART + 1, RLENGTH - 3)
+			sub(/^\.?\.?(\/[^\/]+)*\//, "", meta["filename"])
+			next
+		}
+		$1 ~ /^[[:space:]]+track$/ {
+			if ($2 ~ /[[:digit:]]\/[[:digit:]]+/) {
+				split($2, distra, "/")
+				meta["track"] = distra[1]
+				meta["disc"] = distra[2]
+			} else {
+				meta["track"] = $2
+			}
+			next
+		}
+		$1 ~ /^[[:space:]]+artist$/ { meta["artist"] = $2; next }
+		$1 ~ /^[[:space:]]+album$/ { meta["album"] = $2; next }
+		$1 ~ /^[[:space:]]+title$/ { meta["title"] = $2; next }
+		$1 ~ /^[[:space:]]+date$/ { meta["date"] = $2; next }
+		$1 ~ /^[[:space:]]+disc$/ { meta["disc"] = $2; next }
+		$1 ~ /^[[:space:]]+Duration$/ {
+			meta["duration"] = $2 ":" $3 ":" substr($4, 1, 2) 
+			next
+		}
+		END {
+			# id:artist:album:title:disc:track:date:duration:cover.png
+			if (length(meta["artist"]) > 0 && length(meta["title"]) > 0) {
+				indexs = "duration:date:track:disc:title:album:artist"
+				split(indexs, data, ":")
+				for (i = 1; i <= length(data); i++) {
+					name = data[i]
+					record = meta[name] ";" record
+				}
+				path = meta["artist"] "-" meta["album"] "-" meta["title"] ".png"
+				printf("%s%s\n", record, path)
+			} else {
+				# essential parts aint here, use file name
+				printf("%s\n", meta["filename"])
+			}
+		}	
+	'
+}
+
+# Add songs to the playlist
+func_add_songs ()
+{
+	list=$( mktemp -u /tmp/XXXXX )
+	newlist=$( mktemp -u /tmp/XXXXX )
+	echo playlist | func_snc | sed -n 's/^[[:digit:]]\+: \(.*\)$/\1/p' > "$list"
+	find "$@" -type f \( \
+		-iname "*.ogg"  -or -iname "*.mp3" -or \
+		-iname "*.flac" -or -iname "*.wav" \
+	\) | diff - "$list"    | sed -n 's/^< \(.*\)/\1/p' \
+		| tee -a "$newlist" | sed -n 's/\(.*\)/add \1/p' \
+		| func_snc
+
+	songid=$( cat "$list" | wc -l )
+	extract="func_no_metadata"
+	command -v ffmpeg >/dev/null && extract="func_with_metadata"
+
+	cat "$newlist" | while read song; do
+		eval $extract "$song" "$songid"
+		songid=$(( songid + 1 ))
+	done >> "$cache"
+	rm -f "$list" "$newlist"
+}
+
+# Search for a song to play
+func_search_songs ()
+{
+	test -n "$1" && menu="$1" || return
+	if test -f "$cache"; then
+		record=$( cat "$cache" | awk -F[';'] '
+			NF == 2 { printf("[%s] : %s\n", $1, $2) }
+			NF > 4 { printf("[%s] %s : %s - %s\n", $1, $2, $3, $4) }
+		' | $menu )
+		songid=$( echo "$record" | sed -n 's/^\[\(.*\)\].*$/\1/p' )
+		printf 'play %s' "$songid" | func_snc
 	fi
 }
 
-# to find for media files, you have to manually delete the cache.
-func_use_cache ()
+# Toggle repeat
+func_toggle_repeat ()
 {
-	test -f "$cache" || return 1
-
-	local lnr slnr
-	lnr=`cat "$cache" | wc -l`
-	slnr=`cat "$cache" | grep '^add .\(mp3\|flac\|wav\|ogg\)$' | wc -l`
-
-	# check file format
-	if test $lnr -ne $slnr; then
-		printf '%s: invalid file format\n' "$cache" >&2
-		return 1
-	fi
-	lnr=`nc -q 0 -U $sock <<< 'playlist' | grep -v '^OK' | grep -v '^ERR' | wc -l`
-	# check if already added
-	if test $lnr -eq 0; then
-		cat "$cache" | nc -q0 -U $sock &>/dev/null
-	fi
-}
-
-func_add_playlist ()
-{
-	local path once=0
-
-	# clear the playlist before adding anything
-	func_search_add ()
-	{
-		local criter='-iname "*.mp3" -or -iname "*.ogg" -or -iname "*.flac" -or -iname "*.wav"'
-
-		while read -r path; do
-			path=`readlink -f $path`
-			test -d "$path" && {
-				if test $once -eq 0 ; then
-					nc -q 0 -U $sock <<< 'clear'
-					once=1
-				fi
-			} || continue
-			eval find "$path" -type f $criter -exec printf 'add %s\n' '{}' \; | \
-			tee $cache | nc -q0 -U $sock
+	while test "x$repeat" = "xyes"; do
+		songid=$( echo status songid | func_snc | cut -d: -f2 )
+		songid=${songid# }
+		echo wait songfinished | nc -U "$sock" | \
+		while read event; do
+			case "$event" in
+			event*)
+				printf 'play %s' "$songid" | func_snc
+				break ;;
+			esac
 		done
-	}
-	printf '%s' "$mudirs" | tr ':' '\n' | func_search_add
-}
-
-func_control_sad ()
-{
-	while getopts ':cknpsfld:a:r' action; do
-		case $action in
-		a|A)
-			paths="$OPTARG"
-			func_addlist &>/dev/null
-			;;
-		n|N) 
-			pkill -fu "$USER" '/sadr$'
-			nc -q0 -U $sock <<< 'next'
-			;;
-		p|P)
-			pkill -fu "$USER" '/sadr$'
-			nc -q0 -U $sock <<< 'prev'
-			;;
-		d|D) nc -q0 -U $sock <<< "remove $OPTARG" ;;
-		c|C) nc -q0 -U $sock <<< 'clear' ;;
-		k|K) nc -q0 -U $sock <<< 'kill' ;;
-		s|S) nc -q0 -U $sock <<< 'stop' ;;
-		f|F) nc -q0 -U $sock <<< 'pause' ;;
-		r|R) nc -q0 -U $sock <<< 'random' ;;
-		l|L) nc -q0 -U $sock <<< 'playlist' ;;
-		*)
-			echo 'invalid option' >&2
-			return 1
-			;;
-		esac
+		repeat=$(test -r "$trepeat" | cat "$trepeat")
+		if test "x$repeat" != "xyes" && test "x$repeat" != "xno"; then
+			echo "$0: corrupted file: $trepeat"
+			repeat="no"
+		fi
 	done
 }
 
-case $# in
-0)
-	func_ucache && func_add_playlist &>/dev/null ;;
-1|2)
-	func_control_sad "$@" ;;
-*)  
-	printf 'invalid number of arguments' >&2
-	exit 1 ;;
-esac
+# TODO: A simple TUI to interact with sad
+func_sad_termui () { :; }
+
+while getopts :a:sckpnm option; do
+	case "$option" in
+	--add)
+		func_add_songs "$OPTARG"
+		;;
+	--kill | --clear | --next | --prev | --pause | --random)
+		echo "${option#--}" | func_snc
+		;;
+	--search)
+		func_search_songs
+		;;
+	esac
+done
+
+
+
+remove $OPTARG
+stop
+pause
+random
+playlist
