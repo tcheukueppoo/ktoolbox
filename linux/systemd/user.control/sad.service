@@ -1,9 +1,10 @@
 [Unit]
-Description=SAD music player daemon
+Description=SAD music audio daemon
 
 [Service]
 ExecStart=/usr/local/bin/sad
+ExecStartPost=/usr/local/bin/sadp -add
 Restart=on-failure
 
 [Install]
-WantedBy=basic.target
+WantedBy=default.target

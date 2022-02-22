@@ -20,6 +20,10 @@
 
 # - Global variables declaration.
 
+# FIXME: 
+# 1. wfmux skipped an unoccupied window to open a new one.
+# 2. wfmux doesn't use any of the 2 panes with label 'bash' and exits
+
 # These regexs define lines format of the command set
 careg='^[a-z]+:.*$'
 empty='^[\t ]*$'
@@ -43,16 +47,17 @@ cache="$cache_dir/wfmux-tags"
 tags='sh:php:golang:lua:js:c++:python:clang:bash:nodejs:django:vuejs:angularjs:mojo:bootstrap:perl:awk:bc'
 
 # Text files
-editor="${EDITOR:-vim}"
+: ${EDITOR=nvim}
+: ${editor=$EDITOR}
 
 # Open audio/video files
-mediaplayer=ffplay
+: ${mediaplayer=ffplay}
 
 # Open pdf files
-pdfviewer=zathura
+: ${pdfviewer=zathura}
 
 # Open image files
-imageviewer=feh
+: ${imageviewer=feh}
 
 # Menus can be dmenu, fzf, fzy etc.
 menu=
