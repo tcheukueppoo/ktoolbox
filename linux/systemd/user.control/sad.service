@@ -1,5 +1,5 @@
 [Unit]
-Description=SAD music audio daemon
+Description=SAD simple audio daemon
 
 [Service]
 ExecStart=/usr/local/bin/sad

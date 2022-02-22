@@ -104,6 +104,7 @@ fi
 : ${showhelp=yes}
 
 strip_ids='s/^[[:digit:]]*: \(.*\)/\1/'
+digits='^[[:digit:]]\+$'
 
 usage="\
 usage: $me [OPTION]
@@ -124,14 +125,13 @@ Options:
                         the default menu is dmenu
 	-sock   SOCK_PATH     precise the unix domain socket to connect to SAD
   -notify PROGNAME      send desktop notifications with PROGNAME about the new
-                        playing song
+                        playing song, the argument PROGNAME is mandatory
   -info                 display information on the standard output about the currently
-                        playing song, The argument PROGNAME is mandatory
+                        playing song
   -clear                clear playlist
   -kill                 kill the audio daemon
   -pause                toggle pause
   -repeat               toggle repeat
-  -current              output metadata about the current playing song
   -random               randomly switch between songs, don't follow any order
   -next                 play next song
   -previous             play previous song
@@ -152,6 +152,11 @@ warranty; not even for MERCHANTIBILITY or FITNESS FOR A PARTICULAR PURPOSE."
 ###  Functions
 ###---------------
 
+# set_socket PATH_TO_UNIX_DOMAIN_SOCKET
+# -------------------------------------
+# Set socket file instead of the default unix domain socket at /tmp/sad-sock.
+set_socket () { test -S "$1" && sock="$1" || $as_echo "$me: $1 is not a socket"; }
+
 # snc
 # ---
 # A simplified nc, it exits after recieving EOF and filters useless data.
@@ -169,9 +174,17 @@ no_metadata () { printf '%d:%s' "$2" `basename "$1"`; }
 # these informations a filled into the $metadata_playlist
 extract_metadata ()
 {
-	# Without the knowlegde about possible options that ffprobe could have to easily
-	# extract usable metadata on media files, we got this
+	# rewrite IDs if remove_song_from_playlist was called
+	if test -s "$metadata_playlist" && test `cat "$metadata_playlist" | head -n1 | cut -d ';' -f1` -ne 0
+	then
+		new_metadata_file="$(mktemp -u /tmp/XXXX)"
+		cat "$metadata_playlist" | awk -F[';'] '{ printf("%d;%s\n", (NR - 1), $2); }' > "$new_metadata_file"
+		mv "$new_metadata_file" "$metadata_playlist"
+		rm -f "$new_metadata_file"
+	fi
 	while read media_file; do
+		# Without any knowlegde about possible options `ffprobe' could have to easily
+		# extract usable metadata on media files, we got this
 		tags=`ffprobe -hide_banner "$media_file" 2>&1 |
 		awk '
 			BEGIN { FS = "[[:space:]]*:[[:space:]]*" }
@@ -265,8 +278,8 @@ add_songs_to_playlist ()
 # remove song with id ID from the playlist.
 remove_song_from_playlist ()
 {
-	if $as_echo	"$1" | grep -q '^[[:digit:]]\+$'; then
-		if test $1 -lt `cat "$metadata_playlist" | tail -n1` && test $1 -gt 0
+	if $as_echo	"$1" | grep -q "$digits"; then
+		if test $1 -lt `cat "$metadata_playlist" | tail -n1 | cut -d ';' -f1` && test $1 -ge 0
 		then
 			media_path=`$as_echo "playlist" | snc | sed -n "s/^$1: \(.*\)/\1/p"`
 			sed -i "\,^$media_path$,d" "$file_name_playlist"
@@ -292,7 +305,7 @@ search_songs ()
 			if test -f "$metadata_playlist"; then
 				metadata='NF == 2 { printf("(%d) [No Name] - %s\n", $1, $2) }; NF > 4 { printf("(%d) %s - %s\n", $1, $2, $4) }'
 				song_id=`cat "$metadata_playlist" | awk -F[';'] "$metadata" | eval $menu | sed -e 's/^(\([[:digit:]]\+\)).*$/\1/'`
-				if $as_echo "$song_id" | grep -q '[[:digit:]]\+'; then
+				if $as_echo "$song_id" | grep -q "$digits"; then
 					printf 'play %s\n' "$song_id" | snc
 					write_song_id "$song_id"
 					#$as_echo "exit code $?"
@@ -356,7 +369,7 @@ toggle_repeat ()
 cur_playing_song ()
 {
 	get_id=`$as_echo "status songid" | snc | cut -d ' ' -f2`
-	if $as_echo "$get_id" | grep -qE '^[[:digit:]]+$'; then
+	if $as_echo "$get_id" | grep -qE "$digits"; then
 		[ -s "$metadata_playlist" ] && cat "$metadata_playlist" | grep "^$get_id;" | awk -F[';'] '{ printf("%s - %s, Duration: %s\n", $2, $4, $8) }'
 	else $as_echo "$me: no song playing"; fi
 }
@@ -366,7 +379,10 @@ cur_playing_song ()
 # Notify the new playing song through xsetroot/herbe/notify-send  
 notification_daemon ()
 {
-	set -x
+	# If `sapd -notify <progname>' was run as a systemd service, then we gotta specify
+	# the display for herbe/xsetroot/etc since systemd doesn't use the X server.
+	DISPLAY=:0; export DISPLAY
+
 	case "$1" in
 		xsetroot ) _notify='xsetroot -name "$getsong"' ;;
 		herbe ) _notify='herbe "SAD" "$getsong"' ;;
@@ -394,7 +410,6 @@ sad_termui () { :; }
 
 # is_main_function "$@"
 # ---------------------
-# Cycle through arguments and run the target function.
 main ()
 {
 	case "x$#x" in
@@ -412,9 +427,11 @@ main ()
 		esac ;;
 		x2x )
 		case "$1" in
+			-add )    add_songs_to_playlist "$2" ;;
+			-sock )   set_socket "$2" ;;
 			-notify ) notification_daemon "$2" ;;
 			-search ) search_songs "$2" ;;
-			-add ) add_songs_to_playlist "$2" ;;
+			-remove ) remove_song_from_playlist "$2" ;;
 			* ) $as_echo "$help" ;;
 		esac ;;
 		* )

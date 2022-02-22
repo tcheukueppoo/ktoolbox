@@ -1,0 +1,11 @@
+[Unit]
+Description=SAD notification daemon
+PartOf=graphical-session.target
+Requires=sad.service
+
+[Service]
+Type=simple
+ExecStart=/usr/local/bin/sadp -notify herbe
+
+[Install]
+WantedBy=default.target
