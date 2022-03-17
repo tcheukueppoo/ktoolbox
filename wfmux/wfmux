@@ -15,80 +15,70 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-# Author:  <kueppo@paranoid>
+# Author:  <kueppo@paranoid.dev>
 # Created: 2022-01-15
-
-# - Global variables declaration.
 
 # FIXME: 
 # 1. wfmux skipped an unoccupied window to open a new one.
 # 2. wfmux doesn't use any of the 2 panes with label 'bash' and exits
 
-# Sadly, echo is not posix complaint
+# echo is not posix compliant
 as_echo='printf %s'
 as_echo_n='printf %s\n'
 
-me=$as_echo_n "$0" | sed -e 's,.*/,,'
-# These regexs define lines format of the command set
-careg='^[a-z]+:.*$'
-empty='^[\t ]*$'
-comment='^[\t ]*#'
-
-digit='^[0-9]+$'
-idle_regex="s/^(${SHELL##*/}|bash|ksh|sh|dask|tcsh|csh):.*$/\1/"
-
-# Defines lines format in wfmux config file.
-creg='^[\t ]*[-_0-9a-zA-Z]+=('\''.+'\''|".+"|[0-9]+)[\t ]*$'
+me=`$as_echo_n "$0" | sed -e 's,.*/,,'`
 
 config_dir="${XDG_CONFIG_HOME:-$HOME/.config}"
 config="$config_dir/wfmux.conf"
-sconfig="$config_dir/wfmux-cmdset"
 
 cache_dir="${XDG_CACHE_HOME:-$HOME/.cache}"
 cache="$cache_dir/wfmux-tags"
 
-############################################
-### CONFIGURABLE DATA (~/config/.wfmux.conf)
-############################################
+cmd_set="$config_dir/wfmux-cmdset"
 
-# Tag projecrs
-tags="sh:php:golang:lua:js:c++:python:clang:bash:nodejs:django:vuejs:angularjs:mojo:bootstrap:perl:awk:bc"
+# these regexs define lines format of the command set
+careg='^\w+:.*$'
+empty='^[\t ]*#\?$'
+digit='^[[:digit:]]+$'
+idle_regex="s/^(${SHELL##*/}:.*$/\1/"
 
-# Text files
-: ${text_editor=$text_editor}
-: ${text_editor:=nvim}        # text files
-: ${media_player:=ffplay} # videos
-: ${pdf_viewer:=zathura}  # pdfs
-: ${image_viewer=feh}     # images
-: ${menu:=fzf}           # menu (ex: dmenu, fzy, fzf, etc.)
+# it must be a variable assignement
+asign='^[\t ]*\w+=('\''.+'\''|".+"|[0-9]+)[\t ]*$'
+
+is_install() {
+	command -v "$1" >/dev/null || return 1;
+}
+
+if ! is_install xdg-open; then
+	is_install zathura && pdf_viewer=zathura
+	is_install feh     && image_viewer=feh
+	is_install nvim    && text_editor=nvim
+	is_install ffplay  && media_player=ffplay
+	{ is_install vis   && test -n "$text_editor"; }  && text_editor=vis
+	{ is_install mpv   && test -n "$media_player"; } && media_player=mpv
+fi
 
 # The directory where all the projects resides
 project_list="$HOME/projects"
 
-# selected tag for the choosen project
-stags=
 # main program to run
 prog=
+
 # whole program, a_prog="$prog arg1 arg2 .... argn"
 a_prog=
-
-buffer=
 
 USAGE='
 
 '
 
-prog_install () { eval command -v "$1" >/dev/null || return 1; }
 
-# The format of wfmux config should be identical to sh variable assignment.
-# ex: var='val', var="val", var=2.
-# This may overwrite variables declared above
-parse_config ()
-{
-	test -f "$config" || return 0
+# parse configuration file
+parse_config() {
 	count=1
+
+	test -f "$config" || return 0
 	while read a_config; do
-		if $as_echo_n "$a_config" | grep -qE "$creg"; then
+		if $as_echo_n "$a_config" | grep -qE "$asign"; then
 			eval $a_config
 		elif $as_echo_n "$a_config" | grep -qE "$empty"; then :;
 		elif $as_echo_n "$a_config" | grep -qE "$comment"; then :;
@@ -96,12 +86,10 @@ parse_config ()
 			$as_echo_n "$me: ${config##*/}: error at line $count" >&2
 			break
 		fi
-		count=$(( count + 1 ))
+		count=$((count + 1))
 	done < "$config"
 }
 
-# set_menu
-# --------
 # set_menu chooses what menu is to be use based on its availability
 set_menu() {
 	for menus in fzf fzy dmenu; do
@@ -208,11 +196,11 @@ new_split() {
 # ------------
 # 
 run_genprog() {
-	if test -f "$sconfig"; then
+	if test -f "$cmd_set"; then
 		project=`tmux list-sessions -F '#S:#{session_activity}' | sort -b -t: -k 2,2n | tail -n1 | cut -d: -f1`
 		tag="${project##*-}"
 		if test -n "$tag"; then
-			grep -q "^$tag:" "$sconfig" && a_prog=`cat "$sconfig" | sed -n "s/^$tag:\(.*\)/\1/p" | eval $menu`
+			grep -q "^$tag:" "$cmd_set" && a_prog=`cat "$cmd_set" | sed -n "s/^$tag:\(.*\)/\1/p" | eval $menu`
 			test -n "$a_prog" && a_prog="$a_prog; sleep 4" && new_split
 		fi
 	fi
@@ -256,6 +244,7 @@ main() {
 		
 	fi
 }
+
 if [ -z "$menu" ]; then
 	$as_echo_n "$me: no menu were found." >&2
 	exit 1
