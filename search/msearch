@@ -1,0 +1,23 @@
+#!/bin/sh
+
+as_echo="printf %s\\n"
+
+direc=$(
+	{
+		[ -d "$HOME/Downloads" ] && $as_echo "Downloads"
+		[ -d "$HOME/Videos" ] && $as_echo "Videos"
+		[ -d /mnt2/media ] && ls -F /mnt2/media | sed -n 's#\(.*\)/$#\1#p'
+	} | dmenu -c -p "Where" -z 600 -l 10 -h 20 -i
+)
+
+{ [ "$direc" == Downloads ] || [ "$direc" == Videos ]; } && direc="$HOME/$direc" || direc="/mnt2/media/$direc"
+
+if [ -d "$direc" ]; then
+
+	cache="${XDG_HOME_CACHE:-"$HOME/.cache"}"
+	m_cache="${cache}/msearch"
+	media=$(find $direc -type f \( -iname "*.avi" -o -iname "*.mp4" -o -iname "*.mkv" \) | tee "$m_cache" | while read base; do echo `basename "$base"`; done | dmenu -c -p "Search" -z 600 -l 20 -h 20 -i)
+	media=$(cat "$m_cache" | grep "/$media$" | head -n1)
+
+	[ -n "$media" ] && ffplay "$media"
+fi

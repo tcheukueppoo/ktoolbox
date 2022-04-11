@@ -3,8 +3,7 @@
 # script to create a ussd(Unstructured supplementary Service Data)
 # session through a 3GPP network
 
-func_get_modem ()
-{
+func_get_modem() {
 	local getidex=`mmcli -L | cut -d/ -f6 | cut -d ' ' -f1`
 
 	printf '%s' "$getidex" | grep -qv '[0-9]\+'
@@ -14,8 +13,7 @@ func_get_modem ()
 
 # retrieve the relevant information from the
 # output of mmcli -m $getidex --3gpp-ussd-initiate="$query" 
-func_struct_regex ()
-{
+func_struct_regex() {
 	perl -e 'my $line = undef;
 	while (<<>>) {
 		$line .= $_;
@@ -26,15 +24,13 @@ func_struct_regex ()
 	}'
 }
 
-func_myprompt ()
-{
+func_myprompt() {
 	local query
 
 	# don't try to end a ussd session that doesn't
 	# exist, so func_check_status checks if the
 	# session exist first before trying to end it
-	func_check_status ()
-	{
+	func_check_status() {
 		local status
 
 		status=`mmcli -m $getidex --3gpp-ussd-status | fgrep status: | awk -F[':'] '{print $2}'`

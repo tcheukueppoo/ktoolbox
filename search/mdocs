@@ -1,40 +1,15 @@
-#!/usr/bin/env sh
-#
-# a simple script which finds for pdfs
-# and open them with mupdf pdf viewer
+#!/bin/sh
 
-if ! command -v mupdf; then
-	echo 'install mupdf first!' >&2
-	exit 1
-fi
+[ -d "/mnt2/books" ] && [ -r "/mnt2/books" ] && direcs="/mnt2/books"
+[ -d "$HOME/Documents" ] && [ -r "$HOME/Documents" ] && direcs="$direcs${direcs:+" "}$HOME/Documents"
+[ -d "$HOME/Downloads" ] && [ -r "$HOME/Downloads" ] && direcs="$direcs${direcs:+" "}$HOME/Downloads"
 
-db='/mnt2/books'
+if [ -n "$direcs" ]; then
 
-case $# in
-1)	if ! test -d "$1"; then
-		echo "$0: $1 is not a directory" >&2
-		exit 1
-	fi
-	db="$1" ;;
-*)	echo "$0 takes only one arguments" >&2 ;;
-esac
-
-cache="${XDG_HOME_CACHE:-"$HOME/.cache"}"
-dcache="${cache}/mdocs"
-
-pdf="$(find $db -type f \
-		\( -iname '*.pdf' -or \
-			-iname '*.xps' -or \
-			-iname '*.chm' -or \
-			-iname '*.cbz' -or \
-			-iname '*.epub' \
-		\) \
-		 -print | tee $dcache | \
-		while read base; do
-			echo "$(basename "$base")"
-		done | dmenu -c -i -l 20)"
-
-if test -n "$pdf"; then
+	cache="${XDG_HOME_CACHE:-"$HOME/.cache"}"
+	dcache="$cache/mdocs"
+	pdf="$(find $direcs -type f \( -iname '*.pdf' -or -iname '*.xps' -or -iname '*.chm' -or -iname '*.cbz' -or -iname '*.epub' \) -print | tee $dcache | while read base; do echo `basename "$base"`; done | dmenu -c -p "Search" -z 600 -l 20 -h 20 -i)"
 	pdf="$(cat $dcache | grep "/$pdf$" | head -n1)"
-	mupdf "$pdf"
+
+	[ -n "$pdf" ] && mupdf "$pdf"
 fi

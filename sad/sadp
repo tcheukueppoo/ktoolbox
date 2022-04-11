@@ -162,15 +162,9 @@ set_socket () { test -S "$1" && sock="$1" || $as_echo "$me: $1 is not a socket";
 # A simplified nc, it exits after recieving EOF and filters useless data.
 snc () { nc -N -U "$sock" | grep -v '^OK$' | grep -v '^ERR$'; }
 
-# no_metadata MEDIA_FILE
-# ----------------------
-# no_metadata simply fill in the basename of MEDIA_FILE to the $metadata_playlist
-# since ffmpeg is not present.
-no_metadata () { printf '%d:%s' "$2" `basename "$1"`; }
-
-# with_metadata MEDIA_FILE_ABS_PATH
-# ---------------------------------
-# with_metadata extracts metadata from the media file passed as parameter
+# extract_metadata MEDIA_FILE_ABS_PATH
+# ------------------------------------
+# extract_metadata extracts metadata from the media file passed as parameter
 # these informations a filled into the $metadata_playlist
 extract_metadata ()
 {
@@ -246,9 +240,8 @@ add_songs_to_playlist ()
 		if test -s "$metadata_playlist" && test -s "$file_name_playlist" && test -w "$file_name_playlist" && test -w "$metadata_playlist"
 		then
 			if test `cat "$metadata_playlist" | wc -l` -eq `cat "$file_name_playlist" | wc -l`; then
-				: ${media_count=1}
-				$as_echo "playlist" | snc | sed -e "$strip_ids" | diff - "$file_name_playlist" | sed -n 's,^> \(.*\),\1,p' |
-				while read media_path; do
+				media_count=1
+				$as_echo "playlist" | snc | sed -e "$strip_ids" | diff - "$file_name_playlist" | sed -n 's,^> \(.*\),\1,p' | while read media_path; do
 					test -f "$media_path" && $as_echo "add $media_path" || sed -i "${media_count}d" "$file_name_playlist" "$metadata_playlist"
 					media_count=$(( media_count + 1 ))
 				done | snc
@@ -258,15 +251,16 @@ add_songs_to_playlist ()
 			fi
 		fi
 	else
+		search_crit="-type f -a ( -iname *.ogg -o -iname *.flac -o -iname *.mp3 -o -iname *.wav )"
 		prev_num_line=`cat "$file_name_playlist" | wc -l`
 		incr_song_id=$(( `tail -n1 "$metadata_playlist" | cut -d ';' -f1` + 1 ))
 		test $incr_song_id -eq 1 && incr_song_id=0
-		# Use `diff' to generate new media files path to be added
+
 		for a_dir in "$@"; do real_path="`readlink -f "$a_dir"`${real_path+;}$real_path"; done
 		OLDIFS="$IFS" && IFS=';' && set -- $real_path && IFS="$OLDIFS"
-		search_crit="-type f -a ( -iname *.ogg -o -iname *.flac -o -iname *.mp3 -o -iname *.wav )"
-		find "$@" $search_crit | diff - "$file_name_playlist" | sed -n 's,^< \(.*\),\1,p' | tee -a "$file_name_playlist" | extract_metadata >> "$metadata_playlist"
+		find "$@" $search_crit | while read found; do grep -Fqx "$found" "$file_name_playlist" && continue || $as_echo "$found"; done | tee -a "$file_name_playlist" | extract_metadata >> "$metadata_playlist"
 		add_lines=`cat "$file_name_playlist" | wc -l`
+
 		if test $add_lines -ne $prev_num_line; then
 			tail -$(( add_lines - prev_num_line )) "$file_name_playlist" | while read media_file; do $as_echo "add $media_file"; done | snc
 		fi
@@ -284,7 +278,7 @@ remove_song_from_playlist ()
 			media_path=`$as_echo "playlist" | snc | sed -n "s/^$1: \(.*\)/\1/p"`
 			sed -i "\,^$media_path$,d" "$file_name_playlist"
 			sed -i "\,^$1;,d" "$metadata_playlist"
-			$as_echo "remove $id" | snc
+			$as_echo "remove $1" | snc
 		fi
 	fi
 }
@@ -369,7 +363,7 @@ toggle_repeat ()
 cur_playing_song ()
 {
 	get_id=`$as_echo "status songid" | snc | cut -d ' ' -f2`
-	if $as_echo "$get_id" | grep -qE "$digits"; then
+	if $as_echo "$get_id" | grep -q "$digits"; then
 		[ -s "$metadata_playlist" ] && cat "$metadata_playlist" | grep "^$get_id;" | awk -F[';'] '{ printf("%s - %s, Duration: %s\n", $2, $4, $8) }'
 	else $as_echo "$me: no song playing"; fi
 }
@@ -393,8 +387,8 @@ notification_daemon ()
 		while read event; do
 			case "$event" in
 				event:* )
-				# Sleep 0.2 seconds the time for sad to play the next song.
-				sleep 0.2
+				# Sleep 0.5 seconds the time for sad to play the next song.
+				sleep 0.5
 				getsong=`cur_playing_song`
 				eval $_notify
 				break ;;
@@ -417,7 +411,7 @@ main ()
 		x1x )
 		case "$1" in
 			-kill | -clear | -next | -prev | -pause | -random )
-			$as_echo "${1#-}" | snc && write_song_id ;;
+			$as_echo "${1#-}" | snc; write_song_id ;;
 			-info | -repeat )
 			test "X${1#-}" = "Xinfo" && cur_playing_song || toggle_repeat ;;
 			-add ) add_songs_to_playlist ;;

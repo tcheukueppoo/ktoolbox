@@ -24,16 +24,21 @@
 # 1. wfmux skipped an unoccupied window to open a new one.
 # 2. wfmux doesn't use any of the 2 panes with label 'bash' and exits
 
+# Sadly, echo is not posix complaint
+as_echo='printf %s'
+as_echo_n='printf %s\n'
+
+me=$as_echo_n "$0" | sed -e 's,.*/,,'
 # These regexs define lines format of the command set
 careg='^[a-z]+:.*$'
 empty='^[\t ]*$'
 comment='^[\t ]*#'
 
 digit='^[0-9]+$'
-fsh="^(${SHELL##*/}|bash|ksh|sh|dask|tcsh):.*$"
+idle_regex="s/^(${SHELL##*/}|bash|ksh|sh|dask|tcsh|csh):.*$/\1/"
 
 # Defines lines format in wfmux config file.
-creg='^[\t ]*[-_0-9a-zA-Z]+=('"'"'.+'"'"'|".+"|[0-9]+)[\t ]*$'
+creg='^[\t ]*[-_0-9a-zA-Z]+=('\''.+'\''|".+"|[0-9]+)[\t ]*$'
 
 config_dir="${XDG_CONFIG_HOME:-$HOME/.config}"
 config="$config_dir/wfmux.conf"
@@ -42,130 +47,114 @@ sconfig="$config_dir/wfmux-cmdset"
 cache_dir="${XDG_CACHE_HOME:-$HOME/.cache}"
 cache="$cache_dir/wfmux-tags"
 
+############################################
 ### CONFIGURABLE DATA (~/config/.wfmux.conf)
-# Tag projects
-tags='sh:php:golang:lua:js:c++:python:clang:bash:nodejs:django:vuejs:angularjs:mojo:bootstrap:perl:awk:bc'
+############################################
+
+# Tag projecrs
+tags="sh:php:golang:lua:js:c++:python:clang:bash:nodejs:django:vuejs:angularjs:mojo:bootstrap:perl:awk:bc"
 
 # Text files
-: ${EDITOR=nvim}
-: ${editor=$EDITOR}
-
-# Open audio/video files
-: ${mediaplayer=ffplay}
-
-# Open pdf files
-: ${pdfviewer=zathura}
-
-# Open image files
-: ${imageviewer=feh}
-
-# Menus can be dmenu, fzf, fzy etc.
-menu=
+: ${text_editor=$text_editor}
+: ${text_editor:=nvim}        # text files
+: ${media_player:=ffplay} # videos
+: ${pdf_viewer:=zathura}  # pdfs
+: ${image_viewer=feh}     # images
+: ${menu:=fzf}           # menu (ex: dmenu, fzy, fzf, etc.)
 
 # The directory where all the projects resides
-plist="$HOME/projects"
-### END
+project_list="$HOME/projects"
 
 # selected tag for the choosen project
 stags=
-
 # main program to run
 prog=
-
-# whole program, aprog="$prog arg1 arg2 .... argn"
-aprog=
+# whole program, a_prog="$prog arg1 arg2 .... argn"
+a_prog=
 
 buffer=
 
 USAGE='
 
 '
-func_installed ()
-{
-	eval command -v "$1" >/dev/null || return 1
-}
+
+prog_install () { eval command -v "$1" >/dev/null || return 1; }
 
 # The format of wfmux config should be identical to sh variable assignment.
 # ex: var='val', var="val", var=2.
-func_parseconfig ()
+# This may overwrite variables declared above
+parse_config ()
 {
 	test -f "$config" || return 0
 	count=1
-	while read line; do
-		if echo "$line" | grep -qE "$creg"; then
-			# This may overwrite variables declared above
-			eval $line
-		elif echo "$line" | grep -qE "$empty"; then :;
-		elif echo "$line" | grep -qE "$comment"; then :;
+	while read a_config; do
+		if $as_echo_n "$a_config" | grep -qE "$creg"; then
+			eval $a_config
+		elif $as_echo_n "$a_config" | grep -qE "$empty"; then :;
+		elif $as_echo_n "$a_config" | grep -qE "$comment"; then :;
 		else
-			echo "$0: ${config##*/}: error at line $count" >&2
-			return 1
+			$as_echo_n "$me: ${config##*/}: error at line $count" >&2
+			break
 		fi
 		count=$(( count + 1 ))
 	done < "$config"
 }
 
-# func_setmenu chooses what menu is to be used based on their availability
-# menus are fzf, fzy, and dmenu.
-func_setmenu ()
-{
-	for smenu in fzf fzy dmenu; do
+# set_menu
+# --------
+# set_menu chooses what menu is to be use based on its availability
+set_menu() {
+	for menus in fzf fzy dmenu; do
 		test -n "$menu" && break
-		case "$smenu" in
-		fzy)   func_installed "$smenu" && menu='fzy' ;;
-		fzf)	 func_installed "$smenu" && menu="fzf +m --margin=10% --header-first --header=${1:-wfmux} --border=bottom" ;;
-		dmenu) func_installed "$smenu" && menu='dmenu' ;;
+		case "$menus" in
+			fzy) prog_install "$menus" && menu="fzy" ;;
+			fzf) prog_install "$menus" && menu="fzf +m --margin=10% --header-first --header=${1:-wfmux} --border=bottom" ;;
+			dmenu) prog_install "$menus" && menu="dmenu" ;;
 		esac
 	done
 	test -n "$menu"
 }
 
-# func_opentmux either present existing sessions to attach, create a new
+# open_tmux
+# ---------
+# open_tmux either present existing sessions to attach, create a new
 # session, or drop you at the terminal, this function should be called in
 # your shell initialization file.
-func_opentmux ()
-{
+open_tmux() {
 	if tmux list-sessions >/dev/null 2>&1; then
 		sid=1
-		echo 'Choose a session to attach'
-		echo
+		$as_echo_n 'Choose a session to attach'
+		$as_echo_n
 		tmux list-sessions | while read session; do
-			echo "$sid) $session"
+			$as_echo_n "$sid) $session"
 			sid=$(( sid + 1 ))
 		done
 	fi
-
-	# sadly, echo is not posix compliant so for the sake of
-	# compatibility with other echos, it's preferable to avoid
-	# any option and escape characters.
-	echo
-	echo '- Enter the name of your new tmux session'
-	echo '- Type f<Return> to select your projects'
-	echo '- Type <Return> to avoid tmux'
-	printf ': '
+	$as_echo_n
+	$as_echo_n "- Enter the name of your new tmux session"
+	$as_echo_n "- Type f<Return> to select your projects"
+	$as_echo_n "- Type <Return> to avoid tmux"
+	$as_echo ": "
 
 	read answer && tput clear
 	case "$answer" in
-	F|f)
- 		project=`ls -F "$plist" | sed -n 's#\(.*\)/$#\1#p' | eval $menu`
-		test -z "$project" && return
- 		if test -d "${plist%/}/$project"; then
-	 		project=`echo "$project" | tr _ '\034' | tr . _`
-			test -f "$cache" && stag=`cat "$cache" | sort -u | grep "^$project:" | cut -d: -f2`
-			if test -z "$stag"; then
-				stag=$(echo "$tags" | tr ':' '\n' | eval $menu)
-				test -z "$stag" && return
-				echo "$project:$stag" >> "$cache"
+		F | f )
+ 		project=`ls -F "$project_list" | sed -n 's#\(.*\)/$#\1#p' | eval $menu`
+		if test -n "$project"; then
+			if test -d "${project_list%/}/$project"; then
+				project=`$as_echo_n "$project" | tr _ '\034' | tr . _`
+				if test -f "$cache"; then
+					selected_tag=`cat "$cache" | sort -u | grep "^$project:" | cut -d: -f2`
+					test -z "$selected_tag" && selected_tag=`IFS=:; $as_echo_n "$tags" | eval $menu`
+					if test -n "$selected_tag"; then
+						$as_echo_n "$project:$selected_tag" >> "$cache"
+						tmux has-session -t "$project-$stag" >/dev/null 2>&1 && (tmux attach -t "$project-$stag"; exit 0) || tmux new-session -s "$project-$stag"
+					fi
+				fi
 			fi
-	 		if (tmux has-session -t "$project-$stag") >/dev/null 2>&1; then
-				tmux attach -t "$project-$stag"
-	 		else
-				tmux new-session -s "$project-$stag"
-			fi
- 		fi
-		;;
-	*)
-		if echo "$answer" | grep -qE "$digit"; then
+		fi ;;
+		* )
+		if $as_echo_n "$answer" | grep -qE "$digit"; then
 			num=`tmux list-sessions | wc -l`
 			if test $answer -ge 1 && test $answer -le $num; then
 				target=`tmux list-sessions -F '#S' | sed -n "${answer}p"`
@@ -174,111 +163,113 @@ func_opentmux ()
 		elif test -z "$answer"; then :;
 		else
 			tmux new-session -s "$answer"
-		fi
-		;;
+		fi ;;
 	esac
 }
 
-func_openpane ()
-{
-	window=`tmux list-windows | fgrep '(active)' | cut -d: -f1`
-	lpane=`tmux list-panes -t "$window" -F '#{pane_current_command}:#P:#{pane_active}'`
-
-	msh=`echo "$lpane" | sed -nE "s,$fsh,\1,p"`
-	if test -n "$msh"; then
-		# try get the active idle pane first
-		pane=`echo "$lpane" | grep "^$msh:[0-9]\+:1$" | cut -d: -f2`
-		test -z "$pane" && pane=`echo "$lpane" | fgrep "$msh:" | head -n1 | cut -d: -f2`
-		tmux send-keys -t "$window.$pane" "$aprog" C-m
+# sub_new_split [TMUX_WINDOW_ID]
+# ------------------------------
+# sub_new_split look for a free panes(no cmd running) and run a command in its
+# if no pane were found, it creates a new pane to run the program ($a_prog).
+sub_new_split() {
+	window="$1"
+	list_panes=`tmux list-panes -t "$window" -F '#{pane_current_command}:#P:#{pane_active}'`
+	myshell=`$as_echo_n "$list_pane" | sed -nE "s,$idle_regex,\1,p" | head -n1`
+	if test -n "$myshell"; then
+		# Firstly, try to get if it exists an active idle pane.
+		pane=`$as_echo_n "$list_panes" | grep "^$myshell:[[:digit:]]\+:1$" | cut -d: -f2`
+		test -z "$pane" && pane=`$as_echo_n "$list_panes" | grep -F "$myshell:" | head -n1 | cut -d: -f2`
+		tmux send-keys -t "$window.$pane" "$a_prog" C-m
 	else
-		npanes=`tmux list-panes -t "$window" | wc -l`
-		if test $npanes -eq 1; then
-			tmux split-window -h -t "$window" "$aprog"
-		elif test $npanes -ge 2; then
-			tmux new-window "$aprog"
-		fi
+		case `tmux list-panes -t "$window" | wc -l` in
+			1 ) split-window -h -t "$window" "$a_prog" ;;
+			* ) false ;;
+		esac
 	fi
 }
 
-func_runit ()
-{
+# new_split
+# ---------
+# new_split iterates the list of windows of our target tmux session and
+# for each of these windows, its run sub_new_split, the loop when sub-
+# new_split succeeds.
+new_split() {
+	active_win=`tmux list-window | grep -F '(active)' | cut -d: -f1`
+	sub_new_split "$active_win" || {
+		for inactive_win in `tmux list-window | grep -Fv '(active)' | cut -d: -f1 | sort -g`
+		do
+			sub_new_split "$inactive_win" && pane_splited=yes && break
+		done
+		test -z "$pane_splited" && tmux new-window "$a_prog"
+	}
+}
+
+# run_genprog
+# ------------
+# 
+run_genprog() {
 	if test -f "$sconfig"; then
 		project=`tmux list-sessions -F '#S:#{session_activity}' | sort -b -t: -k 2,2n | tail -n1 | cut -d: -f1`
 		tag="${project##*-}"
 		if test -n "$tag"; then
-			if grep -q "^$tag:" < "$sconfig"; then
-				aprog=`cat "$sconfig" | sed -n "s/^$tag:\(.*\)/\1/p" | eval $menu`
-			fi
+			grep -q "^$tag:" "$sconfig" && a_prog=`cat "$sconfig" | sed -n "s/^$tag:\(.*\)/\1/p" | eval $menu`
+			test -n "$a_prog" && a_prog="$a_prog; sleep 4" && new_split
 		fi
-		test -n "$aprog" && { aprog="$aprog; sleep 3600"; func_openpane; }
 	fi
 }
 
-func_choosecmd ()
-{
-	# NOTE: The session's name should be the name of your project's directory
-	project=`tmux list-sessions -F '#S:#{session_activity}' | sort -b -t: -k 2,2n | tail -n1 | cut -d: -f1`
+# choosen_file
+# ----------
+#
+choosen_file() {
+	# NOTE: The session's name should be the name of your project's directory.
+	# Preserve the integrity of the dots in $project by translating them to \034 since tmux changes those
+	# dot to underscores when naming sessions.
+	project=`tmux list-sessions -F '#S:#{session_activity}' | sort -b -t: -k 2,2n | tail -n1 | cut -d: -f1 | tr _ . | tr "\034" _`
+	project="${project_list%/}/${project%-*}"
 
-	# If the name you want for your tmux session contains a dot(.),
-	# tmux substitutes these dots to underscores which could cause
-	# a problem since this name should correspond to the name of the directory
-	# containing your project files. A solution to this can be to preserve
-	# the integrity of the dots by translating the original underscores to '\034'.
-	project=`echo "$project" | tr _ . | tr '\034' _`
-	project="${project%-*}"
-	project="${plist%/}/$project"
-
-	pfile=`find "$project" -type f -a \( -path "$project/.git/*" -prune -o -print \) | sed -n "s,^$project/,open ,p" | eval $menu`
-	test -n "$pfile" && echo "open $project/${pfile##open }"
+	file_to_open=`(find "$project" -type f -a \( -path "$project/.git/*" -prune -o -print \)) 2>/dev/null | sed -e "s,^$project/,," | eval $menu`
+	test -n "$file_to_open" && a_prog="$project/$file_to_open"
 }
 
-func_openfile ()
-{
-	aprog=`func_choosecmd`
-	test -z "$aprog" && return
-
-	buffer=`echo "$aprog" | sed -n 's,^open \(.*\)$,\1,p'`
-	test -z "$buffer" && return
-	case "$buffer" in
-	*.mp4 | *.ogg | *.mp3 | *.flac | *.mkv | *.avi | *.m4v | *.mpeg | *.mpg | *.webm | *.mov | *.wav | *.flv | *.wma)
-		func_installed "$mediaplayer" && prog="$mediaplayer" ;;
-	*.png | *.jpeg | *.jpg | *.gif | *.xpm | *.bmp)
-		func_installed "$imageviewer" && prog="$imageviewer" ;;
-	*.pdf | *.epub | *.djvu)
-		func_installed "$pdfviewer" && prog="$pdfviewer" ;;
-	*)
-		func_installed "$editor" && prog="$editor"
-		set -- vis kak nvim
-		while test $# -ne 0 && test -z "$prog"; do
-			func_installed "$1" && prog="$1"
-			shift
-		done ;;
-	esac
-	if test -n "$prog"; then
-		aprog=`echo "$aprog" | sed -n "s,^open \(.*\),$prog \1,p"`
-		func_openpane
+open_file() {
+	choose_file
+	if test "$a_prog"; then
+		case "$a_prog" in
+			*.mp4 | *.ogg | *.mp3 | *.flac | *.mkv | *.avi | *.m4v | *.mpeg | *.mpg | *.webm | *.mov | *.wav | *.flv | *.wma )
+			prog_install "$media_player" && prog="$media_player" ;;
+			*.png | *.jpeg | *.jpg | *.gif | *.xpm | *.bmp )
+			prog_install "$image_viewer" && prog="$image_viewer" ;;
+			*.pdf | *.epub | *.djvu )
+			prog_install "$pdf_viewer" && prog="$pdf_viewer" ;;
+			* )
+			prog_install "$text_editor" && prog="$text_editor" ;;
+		esac
+		test -n "$prog" && a_prog="$prog $a_prog"
+		new_split
 	fi
 }
 
-func_setmenu
-func_parseconfig || exit 1
+main() {
+	set_menu
+	if test "$menu" && parse_config; then
+		
+	fi
+}
 if [ -z "$menu" ]; then
-	echo "$0: No menu were found, possible menus are fzf, fzy, or dmenu." >&2
+	$as_echo_n "$me: no menu were found." >&2
 	exit 1
-elif [ ! -d "$plist" ]; then
-	echo "$0: directory '$plist' doesn't exit" >&2
+elif [ ! -d "$project_list" ]; then
+	$as_echo_n "$me: directory '$project_list' doesn't exit" >&2
 	exit 1
 fi
 
-while getopts :ucf args; do
-	case "$args" in
-	u)
-		func_openfile ;;
-	c)
-		func_runit ;;
-	f)
-		func_opentmux ;;
-	*)
-		echo "$USAGE" ;;
+while test $# -ne 0; do
+	case "$1" in
+		--open | -open | -u ) open_file ;;
+		--runcmd | -runcmd | -r ) run_genprog ;;
+		--find | -find | -f ) open_tmux ;;
+		* ) $as_echo_n "$USAGE" ;;
 	esac
+	shift
 done
