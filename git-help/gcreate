@@ -1,8 +1,6 @@
 #!/bin/sh
 
 access=false
-token=NONE
-name=NONE
 
 usage() { printf "%s\n" "gcreate [-p] -t ACCESS_TOKEN name -n repo_name"; }
 die  () { printf "%s\n" "$1"; exit 1; }
@@ -16,10 +14,12 @@ create_reposit() {
 			curl                                              \
 				--request POST                                \
 				--header "Authorization: token $(tok github)" \
-				--data '{ 
-					"name": "'"$name"'",
-					"private": '$access'
-				}'                                            \
+				--data '
+					{ 
+					  "name": "'$name'",
+					  "private": '$access'
+					}
+				'                                            \
 				--url 'https://api.github.com/user/repos'
 		) >/dev/null 2>&1
 
@@ -29,26 +29,50 @@ create_reposit() {
 				--request POST                            \
 				--header "PRIVATE-TOKEN: $(tok gitlab)"   \
 				--header "Content-Type: application/json" \
-				--data '{
-					"name": "'"$name"'",
-					"path": "new_project",
-					"initialize_with_readme": "false"
-				}'                                        \
+				--data '
+					{
+					  "name": "'$name'",
+					  "initialize_with_readme": "false"
+					}
+				'                                        \
 				--url 'https://gitlab.example.com/api/v4/projects/'
 		) >/dev/null 2>&1
 
 		## create codeberg repository
+		(
+			curl
+				--request POST                                  \
+				--header "Authorization: token $(tok codeberg)" \
+				--header "Content-Type: application/json"       \
+				--date '
+					{
+					  "auto_init": true,
+					  "default_branch": "master",
+					  "description": "'$descript'",
+					  "gitignores": "string",
+					  "issue_labels": "string",
+					  "license": "GPL3",
+					  "name": "'$name'",
+					  "private": '$access',
+					  "readme": "string",
+					  "template": true,
+					  "trust_model": "default"
+					}
+				'                                               \
+				--url 'https://codeberg.org/api/v1/user/repos'
+		)
 	else die "'$name' is an invalid repository name"; fi
 }
 
 main() {
-	if (test $# -ge 2 && test $# -le 3)
+	if (test $# -ge 4 && test $# -le 5)
 	then
-		while getopts :pn: opt
+		while getopts :pn:d: opt
 		do
 			case "$opt" in
 				p)  access=true ;;
-				n)  name="$OPTARG" ;;
+				n)  name=$OPTARG ;;
+				d)  descript=$OPTARG
 				\?) die "unknown '$(eval \$$((OPTIND - 1)))'" ;;
 			esac
 		done
