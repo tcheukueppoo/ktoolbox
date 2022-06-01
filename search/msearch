@@ -10,7 +10,13 @@ direc=$(
 	} | dmenu -c -p "Where" -z 600 -l 10 -h 20 -i
 )
 
-{ [ "$direc" == Downloads ] || [ "$direc" == Videos ]; } && direc="$HOME/$direc" || direc="/mnt2/media/$direc"
+if [ -n "$direc" ]; then
+	if [ "$direc" == Downloads ] || [ "$direc" == Videos ]; then
+		direc="$HOME/$direc"
+	elif [ -d "/mnt2/media/$direc" ]; then
+		direc="/mnt2/media/$direc"
+	fi
+fi
 
 if [ -d "$direc" ]; then
 

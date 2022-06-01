@@ -1,42 +1,34 @@
-#!/usr/bin/env sh
-#
-# chwal is a wallpaper changer script which is
-# to be run by crond.
-# This script is part of
-#    <https://codeberg.org/tcheukueppo/scripts.git>
-#
-#                                  Author: kueppo
+#!/bin/sh
 
-command -v feh || exit 1
-command -v xrandr || exit 1
+if test $# -ne 1; then printf "usage: chwal /path/to/image\n"; exit 1; fi
 
-imgfle='/mnt2/media/images'
-case $# in
-0)
-	: ;;
-1)
-	imgfle="$(readlink -f "$1")"
-	[ ! -d "$imgfle" ] && exit 1
-	;;
-*)	exit 1
-	;;
-esac
+apply_st_background_image() {
+	image="$1"
 
-findwl ()
-{
-	find "$imgfle" -type f -maxdepth 2 \( \
-		-iname "*.jpg" -or \
-		-iname "*.png" -or \
-		-iname "*.jpeg" \
-	\)
+	if test -f "$image"; then
+		bool=true
+		for tool in ff-{blur,border,bright}; do
+			command -v "$tool" >/dev/null || { printf "%s not found\n" $tool; bool=false; }
+		done
+		test $bool == false && return 1
+
+		extension="${image##*.}"
+		if test -n "$extension"; then
+			program="${extension}2ff"
+
+			if command -v "$program" >/dev/null; then
+				$program < "$image" | ff-border e 50 | ff-bright rgba 0 0.5 1 | ff-blur 50 15 > "$HOME/.st.ff"
+			else
+				printf "'%s' not found\n" $program
+				return 1
+			fi
+		else
+			printf "file extension required\n"
+		fi
+	fi
 }
 
-xrandr --listmonitors | fgrep -vi monitors | cut -d: -f1 | \
-while read index; do
-	newimg="$(findwl | shuf -n1)"
-	while [ "$(cat /tmp/current_img)" == "$newimg" ]; do
-		newimg="$(findwl | shuf -n1)"
-	done
-	echo "$newimg" > /tmp/current_img
-	feh --no-fehbg --bg-fill --xinerama-index ${index# } "$newimg"
-done
+change_wallpaper() { :; }
+
+apply_st_background_image "$1"
+#change_wallpaper "$1"

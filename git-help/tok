@@ -1,0 +1,28 @@
+#!/usr/bin/env perl
+
+use strict;
+use feature qw(say state);
+
+my $gitlab   = q(QT5QT5Q);
+my $github   = q(my_token);
+my $codeberg = q(my_token);
+
+sub xcrypt {
+	my $token = $_[0];
+	my $okey  = `cat '$ENV{HOME}/.kit' | tr -d '\\n'`;
+	my $inc   = sub { state $val = -1; $val == 9 ? q() : ++$val; };
+	my $key   = join '', map { $_.uc.$inc->() } split '', $okey;
+	my $ekey  = reverse $key;
+
+	if ($token =~ /^github|codeberg|gitlab$/) {
+		eval "
+			\$token  = \$$token;
+			\$token  =~ tr/$key/$ekey/;
+		";
+	}
+	else { eval "\$token =~ tr/$ekey/$key/" }
+
+	say STDOUT $token
+}
+
+xcrypt @ARGV if $#ARGV == 0;

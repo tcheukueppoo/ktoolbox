@@ -1,0 +1,63 @@
+#!/bin/sh
+
+access=false
+token=NONE
+name=NONE
+
+usage() { printf "%s\n" "gcreate [-p] -t ACCESS_TOKEN name -n repo_name"; }
+die  () { printf "%s\n" "$1"; exit 1; }
+
+create_reposit() {
+
+	if expr $name : '[^ ]*' >/dev/null
+	then
+		## create github repository
+		(
+			curl                                              \
+				--request POST                                \
+				--header "Authorization: token $(tok github)" \
+				--data '{ 
+					"name": "'"$name"'",
+					"private": '$access'
+				}'                                            \
+				--url 'https://api.github.com/user/repos'
+		) >/dev/null 2>&1
+
+		## create gitlab repository
+		(
+			curl 
+				--request POST                            \
+				--header "PRIVATE-TOKEN: $(tok gitlab)"   \
+				--header "Content-Type: application/json" \
+				--data '{
+					"name": "'"$name"'",
+					"path": "new_project",
+					"initialize_with_readme": "false"
+				}'                                        \
+				--url 'https://gitlab.example.com/api/v4/projects/'
+		) >/dev/null 2>&1
+
+		## create codeberg repository
+	else die "'$name' is an invalid repository name"; fi
+}
+
+main() {
+	if (test $# -ge 2 && test $# -le 3)
+	then
+		while getopts :pn: opt
+		do
+			case "$opt" in
+				p)  access=true ;;
+				n)  name="$OPTARG" ;;
+				\?) die "unknown '$(eval \$$((OPTIND - 1)))'" ;;
+			esac
+		done
+
+		shift $((OPTIND - 1))
+		test $# -ne 0 && die "invalid options"
+		create_reposit
+
+	else usage; fi
+}
+
+

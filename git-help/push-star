@@ -1,0 +1,23 @@
+#!/bin/sh
+
+for i in                                         \
+
+	## Personal repositories
+	kst kdwm ksent kslock kfetch kslstatus       \
+	myresources amonia lemonbar-xft herbe        \
+	learn gists ktoolbox svis snvim conky.store  \
+	wfmux farbfeld-utils apriori kdmenu kuttix   \
+	krit weeklychallenge sia sad raku-matrix     \
+	perl-matrix sysutils farbfeld-4              \
+
+	## Orginazational repositories (lisa)
+	lisa lisad paranoid
+do
+	repo="$HOME/projects/$i"
+	if [ -d "$repo/.git" ]; then 
+		# check commit id
+		cd "$repo"
+		
+		git push "https://github.com/tcheukueppo/$i"
+	fi
+done
