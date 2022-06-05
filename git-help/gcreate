@@ -1,19 +1,24 @@
 #!/bin/sh
 
 access=false
+program="${0%%*/}"
 
 usage() { printf "%s\n" "gcreate [-p] -t ACCESS_TOKEN name -n repo_name"; }
-die  () { printf "%s\n" "$1"; exit 1; }
+die  () { printf "%s\n" "$*"; exit 1; }
 
 create_reposit() {
 
-	if expr $name : '[^ ]*' >/dev/null
+	echo "name is $name"
+	if [ `expr "$name" : '\([^ ]*\)'` == "$name" ]
 	then
+
+		tok="$HOME/.local/bin/tok"
+		test -x "$tok" || die "$program: either tok isn't executable or is not found"
 		## create github repository
 		(
-			curl                                              \
-				--request POST                                \
-				--header "Authorization: token $(tok github)" \
+			curl                                               \
+				--request POST                                 \
+				--header "Authorization: token $($tok github)" \
 				--data '
 					{ 
 					  "name": "'$name'",
@@ -25,43 +30,40 @@ create_reposit() {
 
 		## create gitlab repository
 		(
-			curl 
-				--request POST                            \
-				--header "PRIVATE-TOKEN: $(tok gitlab)"   \
-				--header "Content-Type: application/json" \
+			curl                                           \
+				--request POST                             \
+				--header "PRIVATE-TOKEN: $($tok gitlab)"   \
+				--header "Content-Type: application/json"  \
 				--data '
 					{
 					  "name": "'$name'",
 					  "initialize_with_readme": "false"
 					}
-				'                                        \
-				--url 'https://gitlab.example.com/api/v4/projects/'
+				'                                          \
+				--url 'https://gitlab.com/api/v4/projects/'
 		) >/dev/null 2>&1
 
 		## create codeberg repository
 		(
-			curl
-				--request POST                                  \
-				--header "Authorization: token $(tok codeberg)" \
-				--header "Content-Type: application/json"       \
-				--date '
+			curl                                                 \
+				--request POST                                   \
+				--header "Authorization: token $($tok codeberg)" \
+				--header "Content-Type: application/json"        \
+				--header "accept: application/json"              \
+				--data '
 					{
-					  "auto_init": true,
 					  "default_branch": "master",
-					  "description": "'$descript'",
-					  "gitignores": "string",
-					  "issue_labels": "string",
+					  "description": "'"$descript"'",
 					  "license": "GPL3",
 					  "name": "'$name'",
 					  "private": '$access',
-					  "readme": "string",
 					  "template": true,
 					  "trust_model": "default"
 					}
 				'                                               \
-				--url 'https://codeberg.org/api/v1/user/repos'
-		)
-	else die "'$name' is an invalid repository name"; fi
+				--url 'https://codeberg.org/api/v1/user/repos'  \
+		) >/dev/null 2>&1
+	else die "$program: '$name' is an invalid repository name"; fi
 }
 
 main() {
@@ -72,16 +74,17 @@ main() {
 			case "$opt" in
 				p)  access=true ;;
 				n)  name=$OPTARG ;;
-				d)  descript=$OPTARG
+				d)  descript=$OPTARG ;;
 				\?) die "unknown '$(eval \$$((OPTIND - 1)))'" ;;
 			esac
 		done
 
 		shift $((OPTIND - 1))
-		test $# -ne 0 && die "invalid options"
+		test $# -ne 0 && die "$program: invalid option count"
 		create_reposit
 
 	else usage; fi
 }
 
+main "$@"
 

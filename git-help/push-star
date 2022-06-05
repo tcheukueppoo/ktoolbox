@@ -1,23 +1,74 @@
 #!/bin/sh
 
-for i in                                         \
+## useful lines for cronjobs
+## personal: 
 
-	## Personal repositories
-	kst kdwm ksent kslock kfetch kslstatus       \
-	myresources amonia lemonbar-xft herbe        \
-	learn gists ktoolbox svis snvim conky.store  \
-	wfmux farbfeld-utils apriori kdmenu kuttix   \
-	krit weeklychallenge sia sad raku-matrix     \
-	perl-matrix sysutils farbfeld-4              \
+warn() { printf '%s\n' "$*" >&2; }
+die()  { warn "$*"; exit 1; }
 
-	## Orginazational repositories (lisa)
-	lisa lisad paranoid
-do
-	repo="$HOME/projects/$i"
-	if [ -d "$repo/.git" ]; then 
-		# check commit id
-		cd "$repo"
-		
-		git push "https://github.com/tcheukueppo/$i"
-	fi
-done
+project_dir="$HOME/projects"
+program="${0%%*/}"
+
+command -v git >/dev/null || die "$program: git not found"
+command -v tok >/dev/null || die "$program: tok not found"
+
+## Personal repositories
+personal_repo() {
+	for i in                                         \
+
+		kst kdwm ksent kslock kfetch kslstatus       \
+		myresources amonia orange herbe              \
+		learn gists ktoolbox svis snvim conky.store  \
+		wfmux farbfeld-utils apriori kdmenu kuttix   \
+		krit weeklychallenge sia sad raku-matrix     \
+		perl-matrix sysutils farbfeld-4              \
+	do
+		## attempt to create even if it exists
+		command -v gcreate && gcreate -p -n "$i" -d "$i" >/dev/null 2>&1
+
+		repository="$(readlink -f "$project_dir/$i")"
+		if [ ! -d "$repository" ]
+		then
+			[ -w "$repository" ] || continue
+			mkdir "$repository"                   &&
+			git init                              &&
+			echo "## $i" >> README.md             &&
+			git add .                             &&
+			git commit -m "initial commit for $i"
+		else
+			## if already committed then push
+			git status | tail -n1 | grep -qE 'nothing to commit|`' || {
+				printf 'on %s...\n' "$i"
+
+				for j in github.com gitlab.org codeberg.org
+				do
+					link="https://$(tok ${j##.*})@$j/tcheukueppo/$i"
+					printf 'push %s to %s\n' $i $link
+					## push the current branch
+					git push 
+				done; false
+			} && { warn "$i repository is uncommited/not added to the index"; }
+		fi
+	done
+}
+
+## Orginazational repositories (lisa)
+organizational_repo() {
+
+	for_body() {
+		org_name="$1"
+		shift
+		for i in "$@"; do
+			link=""
+		done
+	}
+
+	## organization: lisa
+	for i in lisa lisad; do
+		for_body lisa github.com gitlab.com codeberg.org
+	done
+	## organization: paranoid
+	for i in paranoid; do
+		for_body paranoid github.com gitlab.com codeberg.org
+	done
+}

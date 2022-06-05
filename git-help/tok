@@ -3,9 +3,9 @@
 use strict;
 use feature qw(say state);
 
-my $gitlab   = q(QT5QT5Q);
-my $github   = q(my_token);
-my $codeberg = q(my_token);
+my $gitlab   = q(Q9hZf-7UDaGjOxZsMeGdV4rZ6i);
+my $github   = q(Qph_CrNqx7dtw7gGuLWtCpo63PvDCGUzhbT2GZ0K);
+my $codeberg = q(uVPtWZvZWWvMMMtVxlSMSrrPTxxWtrWuooYSylTu);
 
 sub xcrypt {
 	my $token = $_[0];
