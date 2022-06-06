@@ -15,37 +15,40 @@ command -v tok >/dev/null || die "$program: tok not found"
 ## Personal repositories
 personal_repo() {
 	for i in                                         \
-
+                                                     \
 		kst kdwm ksent kslock kfetch kslstatus       \
 		myresources amonia orange herbe              \
 		learn gists ktoolbox svis snvim conky.store  \
 		wfmux farbfeld-utils apriori kdmenu kuttix   \
 		krit weeklychallenge sia sad raku-matrix     \
-		perl-matrix sysutils farbfeld-4              \
+		perl-matrix sysutils farbfeld-4
 	do
 		## attempt to create even if it exists
-		command -v gcreate && gcreate -p -n "$i" -d "$i" >/dev/null 2>&1
+		{ command -v gcreate && gcreate -p -n "$i" -d "$i"; } >/dev/null 2>&1
 
 		repository="$(readlink -f "$project_dir/$i")"
-		if [ ! -d "$repository" ]
+		if [ ! -d "$repository" -o ! -d "$repository/.git" ]
 		then
-			[ -w "$repository" ] || continue
-			mkdir "$repository"                   &&
-			git init                              &&
-			echo "## $i" >> README.md             &&
-			git add .                             &&
+			[ -w "$project_dir" ] || continue
+			mkdir -p "$repository"                                                    &&
+			cd "$repository"                                                          &&
+			git init                                                                  &&
+			{ [ -f "README" -o -f "README.md" ] || printf '## %s' $i >> README.md ; } &&
+			git add .                                                                 &&
 			git commit -m "initial commit for $i"
 		else
 			## if already committed then push
-			git status | tail -n1 | grep -qE 'nothing to commit|`' || {
+			[ -x "$repository" ] || continue
+			cd "$repository"
+			git status | tail -n1 | grep -qE 'nothing to commit' && {
 				printf 'on %s...\n' "$i"
 
-				for j in github.com gitlab.org codeberg.org
+				for j in github.com gitlab.com codeberg.org
 				do
-					link="https://$(tok ${j##.*})@$j/tcheukueppo/$i"
-					printf 'push %s to %s\n' $i $link
+					link="https://$j/tcheukueppo/$i"
+					printf 'push %s to %s\n' "$i" "$link"
 					## push the current branch
-					git push 
+					git push "$(printf '%s' "$link" | sed -e "s#\(https://\)#\1$([ "$j" == gitlab.com ] && printf 'create:')$(tok ${j%%.*})@#")"
 				done; false
 			} && { warn "$i repository is uncommited/not added to the index"; }
 		fi
@@ -56,19 +59,29 @@ personal_repo() {
 organizational_repo() {
 
 	for_body() {
-		org_name="$1"
-		shift
-		for i in "$@"; do
-			link=""
+		repository=$1; shift
+		org_name=$2;   shift
+
+		for j in "$@"; do
+			link="https://$(tok ${j##.*})@$j/$org_name/$repository"
+			printf 'push %s to %s\n' $repository $link
+			git push
 		done
 	}
 
 	## organization: lisa
-	for i in lisa lisad; do
-		for_body lisa github.com gitlab.com codeberg.org
+	for i in         \
+		lisa lisad
+	do
+		for_body $i lisa github.com gitlab.com codeberg.org
 	done
+
 	## organization: paranoid
-	for i in paranoid; do
-		for_body paranoid github.com gitlab.com codeberg.org
+	for i in         \
+		paranoid
+	do
+		for_body $i paranoid github.com gitlab.com codeberg.org
 	done
 }
+
+personal_repo

@@ -17,7 +17,7 @@ start_viper() {
 		   "$path" >/dev/null 2>&1 &
 
 	[ -e /tmp/ffmpeg/record ] && kill `cat /tmp/ffmpeg_record` >/dev/null 2>&1
-	printf "%s" $! > /tmp/ffmpeg_record
+	printf "%s" "$!" > /tmp/ffmpeg_record
 }
 
 kill_viper() {
