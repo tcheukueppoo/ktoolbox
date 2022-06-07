@@ -1,49 +1,56 @@
 #!/bin/sh
 
-## useful lines for cronjobs
-## personal: 
-
+## according to the opengroup, `local` and `echo` isn't posix compliant
 ## usage examples
-## push-star -o -r "github.com gitlab.com codeberg.org" "tcheukueppo:project_name"
-## push-star -p -r "github.com gitlab.com codeberg.org" "lisa:project_name"
+## push-star -o -r "github.com gitlab.com codeberg.org" "tcheukueppo:kdwm"
+## push-star -p -r "github.com gitlab.com codeberg.org" "lisa:lisad"
 main() {
 
 	##<<<<< cron should add new repositories here
-	personal_repo="tcheukueppo:
+	personal_repo=$(cat<<-EOF
+		tcheukueppo
 		kst kdwm ksent kslock kfetch kslstatus
 		myresources amonia orangebar herbe
 		learn gists ktoolbox svis snvim conky.store
 		wfmux farbfeld-utils apriori kdmenu kuttix
 		krit weeklychallenge sia sad raku-matrix
 		perl-matrix sysutils farbfeld-4
-	"
+	EOF
+	)
+
 	##<<<<< cron should add new repositories here too
-	organisation_repo="
-		lisa: lisad lisa
-		paranoid: paranoid
-	"
+	organisation_repo=$(cat<<-EOF
+		lisa:lisad lisa
+		paranoid:paranoid
+	EOF
+	)
 
 	remote_repo="github.com gitlab.com codeberg.org"
-
 	personal=TRUE
 
-	while getopts :r:u:op option; do
-		case "$option" in
-			r) remote_repo="$OPTARG" ;;
-			p) personal=TRUE         ;;
-			o) personal=FALSE        ;;
-		esac
-	done
+	if [ $# -ne 0 ]; then
+		while getopts :r:u:op option; do
+			case "$option" in
+				r) remote_repo="$OPTARG" ;;
+				p) personal=TRUE         ;;
+				o) personal=FALSE        ;;
+				\?) eval die "$`expr $OPTIND - 1`" "is an unrecognized option\n" ;;
+			esac
+		done
 
-	[ $OPTIND -eq $# ] || die "you are for sure not the owner of this script!"
+		[ $OPTIND -eq $# ] || die "you are for sure not the owner of this script!"
 
-	shift $((OPTIND - 1))
+		shift $((OPTIND - 1))
 
-	if [ "$personal" = TRUE ]; then
-		personal_repo="$1"
-		push_to_personal_repository
+		if [ "$personal" = TRUE ]; then
+			personal_repo="$1"
+			push_to_personal_repository
+		else
+			organisation_repo="$1"
+			push_to_organizational_repository
+		fi
 	else
-		organisation_repo="$1"
+		push_to_personal_repository
 		push_to_organizational_repository
 	fi
 }
@@ -51,30 +58,49 @@ main() {
 warn()  { printf '%s\n' "$*" >&2; return 1; }
 die ()  { warn "$*"; exit 1; }
 
+## No need to go further if either host is unreachable
+can_connect() {
+	count=1
+	domain=$1
+
+	while [ $count -lt 4 ]; do
+		ping -c 3 -w 5 "$domain" >/dev/null 2>&1 && return || warn "couldn't connect to $domain"
+		warn 'will retry after 3 seconds...' 
+		sleep 3
+		count=`expr $count + 1`
+	done
+	warn "$program: host: $domain is unreachable, exiting..."
+}
+
+## 100% sure these variables a words :)
 sub_push() {
 	name=$1; domain=$2; repo=$3
+	private=
 
-	printf 'push %s to https://%s/%s/%s/' "$repo" "$domain" "$name" "$repo"
-	private="$([ "$domain" = 'gitlab.com' ] && printf 'create:'; tok ${domain%%.*})"
-	#git push "$(printf '%s' "$olink" | sed -e "s#\(^https://\)#\1$private@#")" || warn "failed.'"
+	olink="https://$domain/$name/$repo"
+	printf 'push %s to %s\n' $repo $olink
+	if can_connect $domain; then
+		[ "$domain" = 'gitlab.com' ] && private=create:
+		private="${private}$(tok ${domain%%.*})"
+		git push "$(printf '%s' "$olink" | sed -e "s#\(^https://\)#\1$private@#")" || warn "failed.'"
+	fi
 }
 
 push_to_personal_repository() {
 
 	project_dir="$HOME/projects"
-	username="$(printf '%s' "$personal_repo" | sed -n '1p' | tr -d ':' | tr -d ' ')"
+	username="$(printf '%s' "$personal_repo" | sed -n '1p')"
 	personal_list="$(printf '%s' "$personal_repo" | awk 'NR > 1{print $0}')"
 
 	for i in $personal_list
 	do
 		repository="$(readlink -f "$project_dir/$i")"
-
-		## attempt to create repo even if it exists, which kinda slow things up but...
-		gcreate -p -n "$i" -d "$i" >/dev/null 2>&1
-
 		[ -x "$repository" ]      || continue
 		[ -d "$repository/.git" ] || continue
 		cd "$repository"
+
+		## attempt to create repo even if it exists, which kinda slow things up but...
+		gcreate -p -n "$i" -d "$i" >/dev/null 2>&1
 
 		if git status | tail -n1 | grep -qE 'nothing to commit'
 		then
@@ -89,9 +115,7 @@ push_to_organizational_repository() {
 	project_dir="$HOME/projects"
 	printf '%s' "$organisation_repo" | while read org_repo
 	do
-		expr "$org_repo" : '^[ \t]*$' >/dev/null 2>&1 && continue
-
-		org_name="$(printf '%s' "$org_repo" | awk -F[':'] '{print $0}' | tr -d ' ')"
+		org_name="$(printf '%s' "$org_repo" | awk -F[':'] '{print $0}')"
 		org_list="$(printf '%s' "$org_repo" | awk -F[':'] '{print $1}')"
 		for i in $org_list
 		do
@@ -109,7 +133,9 @@ push_to_organizational_repository() {
 	done
 }
 
-program="${0%%*/}"
-for i in git tok gcreate; do command -v "$i" >/dev/null || die "$program: $i not found"; done
+prerequisite() { for i in "$@"; do command -v "$i" >/dev/null || die "$program: $i not found"; done;  }
 
-main "$@" > "$HOME/.push-star.log"
+program="${0##*/}"
+prerequisite git tok gcreate
+
+main "$@" #> "$HOME/.push-star.log" 2>&1

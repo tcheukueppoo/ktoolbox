@@ -5,7 +5,7 @@ use feature qw(say state);
 
 my $gitlab   = q(Q9hZf-7UDaGjOxZsMeGdV4rZ6i);
 my $github   = q(Qph_CrNqx7dtw7gGuLWtCpo63PvDCGUzhbT2GZ0K);
-my $codeberg = q(uVPtWZvZWWvMMMtVxlSMSrrPTxxWtrWuooYSylTu);
+my $codeberg = q(rxvWPtVvxVVTTTyVoWlurYSVZoTPyyVyTSWoVZxP);
 
 sub xcrypt {
 	my $token = $_[0];
