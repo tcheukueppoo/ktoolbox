@@ -1,55 +1,75 @@
 #!/bin/sh
 
-access=false
-program="${0%%*/}"
+program="${0##*/}"
 
-usage() { printf "%s\n" "gcreate [-p] -t ACCESS_TOKEN name -n repo_name"; }
+# default visibility of the project
+access=false
+
+main() {
+	command -v tok >/dev/null || die "$program: tok not found"
+
+	if (test $# -ge 4 && test $# -le 5)
+	then
+		while getopts :pn:d: opt
+		do
+			case "$opt" in
+				p)  access=true      ;;
+				n)  name=$OPTARG     ;;
+				d)  descript=$OPTARG ;;
+				\?) die "unknown '$(eval \$$((OPTIND - 1)))'" ;;
+			esac
+		done
+
+		shift `expr $OPTIND - 1`
+		test $# -ne 0 && die "$program: invalid option count"
+
+		create_repository
+	else usage; fi
+}
+
+usage() { printf "gcreate [-p] -d description -n repo_name\n"; }
 die  () { printf "%s\n" "$*"; exit 1; }
 
-create_reposit() {
+create_repository() {
 
-	echo "name is $name"
-	if [ `expr "$name" : '\([^ ]*\)'` == "$name" ]
+	if [ `expr "$name" : '\([^ ]*\)'` = "$name" ]
 	then
-
-		tok="$HOME/.local/bin/tok"
-		test -x "$tok" || die "$program: either tok isn't executable or is not found"
 		## create github repository
 		(
 			curl                                               \
 				--request POST                                 \
-				--header "Authorization: token $($tok github)" \
+				--header "Authorization: token $(tok github)"  \
 				--data '
 					{ 
 					  "name": "'$name'",
 					  "private": '$access'
 					}
-				'                                            \
+				'                                              \
 				--url 'https://api.github.com/user/repos'
 		) >/dev/null 2>&1
 
 		## create gitlab repository
 		(
-			curl                                           \
-				--request POST                             \
-				--header "PRIVATE-TOKEN: $($tok gitlab)"   \
-				--header "Content-Type: application/json"  \
+			curl                                          \
+				--request POST                            \
+				--header "PRIVATE-TOKEN: $(tok gitlab)"   \
+				--header "Content-Type: application/json" \
 				--data '
 					{
 					  "name": "'$name'",
 					  "initialize_with_readme": "false"
 					}
-				'                                          \
+				'                                         \
 				--url 'https://gitlab.com/api/v4/projects/'
 		) >/dev/null 2>&1
 
 		## create codeberg repository
 		(
-			curl                                                 \
-				--request POST                                   \
-				--header "Authorization: token $($tok codeberg)" \
-				--header "Content-Type: application/json"        \
-				--header "accept: application/json"              \
+			curl                                                \
+				--request POST                                  \
+				--header "Authorization: token $(tok codeberg)" \
+				--header "Content-Type: application/json"       \
+				--header "accept: application/json"             \
 				--data '
 					{
 					  "default_branch": "master",
@@ -66,25 +86,4 @@ create_reposit() {
 	else die "$program: '$name' is an invalid repository name"; fi
 }
 
-main() {
-	if (test $# -ge 4 && test $# -le 5)
-	then
-		while getopts :pn:d: opt
-		do
-			case "$opt" in
-				p)  access=true ;;
-				n)  name=$OPTARG ;;
-				d)  descript=$OPTARG ;;
-				\?) die "unknown '$(eval \$$((OPTIND - 1)))'" ;;
-			esac
-		done
-
-		shift $((OPTIND - 1))
-		test $# -ne 0 && die "$program: invalid option count"
-		create_reposit
-
-	else usage; fi
-}
-
 main "$@"
-

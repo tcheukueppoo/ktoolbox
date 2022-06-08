@@ -9,11 +9,11 @@ main() {
 	##<<<<< cron should add new repositories here
 	personal_repo=$(cat<<-EOF
 		tcheukueppo
-		kst kdwm ksent kslock kfetch kslstatus
-		myresources amonia orangebar herbe
-		learn gists ktoolbox svis snvim conky.store
 		wfmux farbfeld-utils apriori kdmenu kuttix
+		learn gists ktoolbox svis snvim conky.store
+		kst kdwm ksent kslock kfetch kslstatus
 		krit weeklychallenge sia sad raku-matrix
+		myresources amonia orangebar herbe
 		perl-matrix sysutils farbfeld-4
 	EOF
 	)
@@ -74,20 +74,19 @@ can_connect() {
 
 ## 100% sure these variables a words :)
 sub_push() {
-	name=$1; domain=$2; repo=$3
 	private=
+	name=$1; domain=$2; repo=$3
 
 	olink="https://$domain/$name/$repo"
 	printf 'push %s to %s\n' $repo $olink
 	if can_connect $domain; then
 		[ "$domain" = 'gitlab.com' ] && private=create:
 		private="${private}$(tok ${domain%%.*})"
-		git push "$(printf '%s' "$olink" | sed -e "s#\(^https://\)#\1$private@#")" || warn "failed.'"
+		git push "$(printf '%s' "$olink" | sed -e "s#\(^https://\)#\1$private@#")" || warn "failed to push $repo to $olink."
 	fi
 }
 
 push_to_personal_repository() {
-
 	project_dir="$HOME/projects"
 	username="$(printf '%s' "$personal_repo" | sed -n '1p')"
 	personal_list="$(printf '%s' "$personal_repo" | awk 'NR > 1{print $0}')"
@@ -100,7 +99,7 @@ push_to_personal_repository() {
 		cd "$repository"
 
 		## attempt to create repo even if it exists, which kinda slow things up but...
-		gcreate -p -n "$i" -d "$i" >/dev/null 2>&1
+		gcreate -p -n "$i" -d "$i" #>/dev/null 2>&1
 
 		if git status | tail -n1 | grep -qE 'nothing to commit'
 		then
@@ -111,8 +110,8 @@ push_to_personal_repository() {
 }
 
 push_to_organizational_repository() {
-
 	project_dir="$HOME/projects"
+
 	printf '%s' "$organisation_repo" | while read org_repo
 	do
 		org_name="$(printf '%s' "$org_repo" | awk -F[':'] '{print $0}')"
