@@ -1,15 +1,37 @@
 #!/bin/sh
 
-[ -d "/mnt2/books" ] && [ -r "/mnt2/books" ] && direcs="/mnt2/books"
-[ -d "$HOME/Downloads" ] && [ -r "$HOME/Downloads" ] && direcs="$direcs${direcs:+" "}$HOME/Downloads"
-[ -d "$HOME/Documents" ] && [ -r "$HOME/Documents" ] && direcs="$direcs${direcs:+" "}$HOME/Documents"
- 
-if [ -n "$direcs" ]; then
+direcs=
+home_dir=${HOME%%/}
+pdf_bin="zathura"
+file_types="-iname '*.pdf'"
 
-	cache="${XDG_HOME_CACHE:-"$HOME/.cache"}"
-	dcache="${cache}/zdocs"
-	pdf="$(find $direcs -type f -iname '*.pdf' -print | tee "$dcache" | while read base; do echo `basename "$base"`; done | dmenu -c -p "Search" -z 600 -l 20 -h 20 -i)"
-	pdf="$(cat "$dcache" | grep "/$pdf$" | head -n1)"
+set_and_check_dirs() {
+	for dir in "$@"; do [ -r "$dir" ] && [ -d "$dir" ] && direcs="$direcs${direcs:+ }'$dir'"; done
+	test -n "$direcs"
+}
 
-	[ -n "$pdf" ] && zathura "$pdf"
-fi
+open_pdf_file() {
+	cache=${XDG_HOME_CACHE:-"$home_dir/.cache"}
+	dcache="$cache/zdocs"
+	pdf=$(eval "find $direcs -type f $file_types -print" | tee "$dcache" | while read base; do echo `basename "$base"`; done | dmenu -c -p "Search" -z 600 -l 20 -h 20 -i)
+	pdf=$(cat "$dcache" | grep "/$pdf$" | head -n1)
+	[ -n "$pdf" ] && $pdf_bin "$pdf"
+}
+
+main() {
+	if [ $# -eq 1 ]; then
+		case "$1" in
+			-m)
+				pdf_bin="mupdf"
+				file_types="\( -iname '*.chm' -or -iname '*.xps' -or -iname '*.pdf' -or -iname '*.cbz' \)" ;;
+			-z) : ;;
+			 *) exit 1 ;;
+		esac
+	elif [ $# -eq 0 ]; then :;
+	else
+		exit 1
+	fi
+	set_and_check_dirs "$home_dir/Documents" "$home_dir/Downloads" "$home_dir/.local/share" /mnt2/books && open_pdf_file
+}
+
+main "$@"

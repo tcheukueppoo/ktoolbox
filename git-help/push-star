@@ -76,8 +76,8 @@ can_connect() {
 sub_push() {
 	private=
 	name=$1; domain=$2; repo=$3
-
 	olink="https://$domain/$name/$repo"
+
 	printf 'push %s to %s\n' $repo $olink
 	if can_connect $domain; then
 		[ "$domain" = 'gitlab.com' ] && private=create:
