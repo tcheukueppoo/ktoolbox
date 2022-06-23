@@ -1,0 +1,7 @@
+#!/bin/sh
+
+## align use's arguments
+use() {
+	max=$(cat "$1" | sed -ne 's/ *qw.*//p' | awk 'BEGIN{var=0}{if (var < length($0)) var=length($0)}END{print var}')
+	cat "$1" | sed -ne 's/\(.*[^ ]\) *\(qw.*\)/\1|\2/p' | awk -F['|'] '{printf "%-'"$(($max+$2))"'s%s\n", $1, $2}'
+}

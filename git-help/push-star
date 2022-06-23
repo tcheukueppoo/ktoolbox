@@ -132,7 +132,7 @@ push_to_organizational_repository() {
 	done
 }
 
-prerequisite() { for i in "$@"; do command -v "$i" >/dev/null || die "$program: $i not found"; done;  }
+prerequisite() { for i in "$@"; do command -v "$i" >/dev/null || die "$program: $i not found"; done; }
 
 program="${0##*/}"
 prerequisite git tok gcreate
