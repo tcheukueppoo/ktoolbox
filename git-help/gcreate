@@ -15,7 +15,7 @@ usage() {
 die() { printf "%s: %s\n" "$pname" "$*"; exit 1; }
 
 main() {
-	if [ $# -lt 6 ]; then usage; return; fi
+	test $# -lt 6 && { usage; return; }
 
 	while [ $# -ne 0 ]; do
 		case $1 in
@@ -32,17 +32,20 @@ main() {
 create_repo() {
 
 	header=; data=; api_url=
-	service=${name%.*}
+	service=${remote%.*}
+	content="Content-Type: application/json"
+
+	printf '%s' "$name" | grep -q '[[:space:]]' && die "'$name' is not a invalid repository name"
 
 	if [ "$service" = codeberg ]
 	then
 		api_url="https://codeberg.org/api/v1/user/repos"
-		header="Authorization: token $(tok github)"
-		data='{"default_branch":"master","description":"'"$descript"'","license":"GPL3","name":"'$name'","private":'$access',"template":true,"trust_model":"default"}'                                               \
+		header="Authorization: token $(tok codeberg)"
+		data='{"default_branch":"master","description":"'"$descript"'","license":"GPL3","name":"'$name'","private":'$access',"template":true,"trust_model":"default"}'
 	elif [ "$service" = github ]
 	then
 		api_url="https://api.github.com/user/repos"
-		header="Authorization: token $(tok codeberg)"
+		header="Authorization: token $(tok github)"
 		data='{"name":"'$name'","private":'$access'}'
 	elif [ "$service" = gitlab ]
 	then
@@ -55,8 +58,9 @@ create_repo() {
 
 	curl --request POST       \
 	     --header  "$header"  \
+		 --header  "$content" \
 	     --data    "$data"    \
-	     --url     "$api_url" >/dev/null 2>&1
+	     --url     "$api_url"
 }
 
 command -v tok >/dev/null || die "$pname: tok not found"
