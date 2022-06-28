@@ -1,28 +1,2 @@
 #!/usr/bin/env perl
-
-use strict;
-use feature qw(say state);
-
-my $gitlab   = q(Q9hZf-7UDaGjOxZsMeGdV4rZ6i);
-my $github   = q(Qph_CrNqx7dtw7gGuLWtCpo63PvDCGUzhbT2GZ0K);
-my $codeberg = q(rxvWPtVvxVVTTTyVoWlurYSVZoTPyyVyTSWoVZxP);
-
-sub xcrypt {
-	my $token = $_[0];
-	my $okey  = `cat '$ENV{HOME}/.kit' | tr -d '\\n'`;
-	my $inc   = sub { state $val = -1; $val == 9 ? q() : ++$val; };
-	my $key   = join '', map { $_.uc.$inc->() } split '', $okey;
-	my $ekey  = reverse $key;
-
-	if ($token =~ /^github|codeberg|gitlab$/) {
-		eval "
-			\$token  = \$$token;
-			\$token  =~ tr/$key/$ekey/;
-		";
-	}
-	else { eval "\$token =~ tr/$ekey/$key/" }
-
-	say STDOUT $token
-}
-
-xcrypt @ARGV if $#ARGV == 0;
+use strict;use feature qw(say state);my$gitlab=q(Q9hZf-7UDaGjOxZsMeGdV4rZ6i);my$github=q(Qph_CrNqx7dtw7gGuLWtCpo63PvDCGUzhbT2GZ0K);my$codeberg=q(rxvWPtVvxVVTTTyVoWlurYSVZoTPyyVyTSWoVZxP);sub xcrypt{my$token=$_[0];my$okey=`cat '$ENV{HOME}/.kit'|tr -d '\\n'`;my$inc=sub{state$val=-1;$val==9?q():++$val};my$key=join'',map{$_.uc.$inc->()}split'',$okey;my$ekey=reverse$key;if($token=~/^git(?:hub|lab)|codeberg$/){eval"\$token=\$$token;\$token=~tr/$key/$ekey/;"}else{eval"\$token=~tr/$ekey/$key/"}say$token}xcrypt@ARGV if$#ARGV==0;

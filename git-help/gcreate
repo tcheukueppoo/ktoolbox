@@ -5,14 +5,17 @@ readonly program="${0##*/}"
 # default visibility of the project
 access=false
 
+usage() {
+	printf "create remote repositories with gcreate"
+	printf "usage:\n\n"
+	printf "     gcreate [-p] -r <gitlab.com|codeberg.org|...> -n <repo_name> -d <description>\n"
+	printf "     gcreate --help|-h\n"
+}
+
+die() { printf "%s: %s\n" "$pname" "$*"; exit 1; }
+
 main() {
-	if [ $# -eq 1 -a \( "$1" = -h -o "$1" = --help \) ]
-	then
-		usage; return
-	elif [ $# -lt 6 ]
-	then
-		usage && die "invalid number of arguments"
-	fi
+	if [ $# -lt 6 ]; then usage; return; fi
 
 	while [ $# -ne 0 ]; do
 		case $1 in
@@ -24,14 +27,6 @@ main() {
 		esac
 	done
 	create_repo
-}
-
-die() { printf "%s: %s\n" "$pname" "$*"; exit 1; }
-
-usage() {
-	printf "usage:"
-	printf "     gcreate [-p] -r <gitlab.com|codeberg.org|...> -n <repo_name> -d <description>"
-	printf "     gcreate --help|-h"
 }
 
 create_repo() {
