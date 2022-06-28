@@ -60,7 +60,7 @@ create_repo() {
 	     --header  "$header"  \
 		 --header  "$content" \
 	     --data    "$data"    \
-	     --url     "$api_url" &>/dev/null 2>&1
+	     --url     "$api_url" >/dev/null 2>&1
 }
 
 command -v tok >/dev/null || die "$pname: tok not found"
