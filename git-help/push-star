@@ -1,8 +1,11 @@
 #!/bin/sh
 
+pname=${0##*/}
+
+username=tcheukueppo
+
 ##<<<<< cron should add new repositories here
 personal_repo=$(cat<<-EOF
-	tcheukueppo
 	wfmux farbfeld-utils apriori kdmenu kuttix
 	learn gists ktoolbox svis snvim conky.store
 	kst kdwm ksent kslock kfetch kslstatus
@@ -19,125 +22,112 @@ organisation_repo=$(cat<<-EOF
 EOF
 )
 
-remote_repo="github.com gitlab.com codeberg.org"
-personal=TRUE
+run="personal_repositories"
+services="github.com gitlab.com codeberg.org"
 
-## according to the opengroup, `local` and `echo` isn't posix compliant
-## usage examples
-## push-star -o -r "github.com gitlab.com codeberg.org" "tcheukueppo:kdwm"
-## push-star -p -r "github.com gitlab.com codeberg.org" "lisa:lisad"
+warn() { printf '%s: %s\n' "$pname" "$*" >&2; return 1; }
+
+die() { warn "$*"; exit 1; }
+
+## push-star -r github.com:gitlab.com:codeberg.org -p tcheukueppo:kdwm -P
+## push-star -r github.com:gitlab.com:codeberg.org -p lisa:lisad -O
 main() {
-	if [ $# -ne 0 ]; then
-		while getopts :r:u:op option; do
+	if [ $# -ne 0 ]
+	then
+		while getopts :r:p:OP option; do
 			case "$option" in
-				r) remote_repo="$OPTARG" ;;
-				p) personal=TRUE         ;;
-				o) personal=FALSE        ;;
+				O) run=organi_repositories ;;
+				P) run=personal_repositories ;;
+				p) idk_yet=$OPTARG ;;
+				r) services=$OPTARG ;;
 				\?) eval die "$`expr $OPTIND - 1`" "is an unrecognized option\n" ;;
 			esac
 		done
 
-		[ $OPTIND -eq $# ] || die "you are for sure not the owner of this script!"
-		shift $((OPTIND - 1))
-
-		if [ "$personal" = TRUE ]; then
-			personal_repo="$1"
-			push_to_personal_repository
+		shift $(expr $OPTIND - 1)
+		## Check arguments validity
+	
+		services=$(printf '%s' "$services" | tr ':' ' ')
+		if [ "$run" = personal_repositories ]
+		then
+			username=$(printf '%s' "$idk_yet" | cut -d: -f1)
+			personal_repo=$(printf '%s' "$idk_yet" | cut -d: -f2)
 		else
-			organisation_repo="$1"
-			push_to_organizational_repository
+			organisation_repo=$idk_yet
 		fi
-	else
-		push_to_personal_repository
-		push_to_organizational_repository
 	fi
+
+	eval "$run"
 }
 
-warn()  { printf '%s\n' "$*" >&2; return 1; }
-die ()  { warn "$*"; exit 1; }
-
-## No need to go further if either host is unreachable
-can_connect() {
+## Check if host is reachable
+can_ping() {
 	count=1
 	domain=$1
 
 	while [ $count -lt 4 ]; do
-		ping -c 3 -w 5 "$domain" >/dev/null 2>&1 && return || warn "couldn't connect to $domain"
-		warn 'will retry after 3 seconds...' 
+		ping -c 3 -w 5 "$domain" >/dev/null 2>&1 && return
+		warn "couldn't connect to $domain, will try after 3 seconds"
 		sleep 3
 		count=`expr $count + 1`
 	done
-	warn "$program: host: $domain is unreachable, exiting..."
+	warn "host $domain is unreachable, exiting."
 }
 
-## 100% sure these variables a words :)
 __push() {
-	private=; name=$1; domain=$2; repo=$3
-	olink="https://$domain/$name/$repo"
+	name=$1; domain=$2; repo=$3; private=
 
-	[ "$domain" = 'gitlab.com' ] && private=create:
-
-	can_connect $domain || return
-	private="${private}$(tok ${domain%%.*})"
-
-	printf 'push %s to %s\n' $repo $olink
-	git push "$(printf '%s' "$olink" | sed -e "s#\(^https://\)#\1$private@#")" || warn "failed to push $repo to $olink."
+	test "$domain" = "gitlab.com" && private=create:
+	if can_ping $domain; then
+		olink="https://${private}$(tok ${domain%%.*})@$domain/$name/$repo"
+		git push "$olink" || warn "couldn't push to $domain."
+	fi
 }
 
-push_to_personal_repository() {
-	project_dir="$HOME/projects"
-	username=$(printf '%s' "$personal_repo" | sed -n '1p')
-	personal_list=$(printf '%s' "$personal_repo" | awk 'NR > 1{print $0}')
+__repositories() {
+	project_dir=$1; repo=$2; uoname=$3; bit=$4
 
-	for repo_name in $personal_list
-	do
+	for repo_name in $repo; do
 		repository=$(readlink -f "$project_dir/$repo_name")
+
 		[ -x "$repository" ]      || continue
 		[ -d "$repository/.git" ] || continue
-		cd "$repository"
 
+		cd "$repository"
 		if git status | tail -n1 | grep -qE 'nothing to commit'
 		then
 			printf 'on %s...\n' "$repo_name"
-			for service in $remote_repo; do
-				## attempt to create repo even if it exists, which kinda slow things up but...
-				gcreate -p -r "$service" -n "$repo_name" -d "$repo_name"
-				__push $username $service $repo_name
+			for service in $services; do
+				[ $bit -eq 1 ] && gcreate -p -r "$service" -n "$repo_name" -d "$repo_name"
+				__push $uoname $service $repo_name
 			done
 		else
 			warn "ignoring '$repo_name'"
 		fi
 	done
+
 }
 
-push_to_organizational_repository() {
+personal_repositories() {
+	project_dir="$HOME/projects"
+	__repositories "$project_dir" "$personal_repo" "$username" 1
+}
+
+organi_repositories() {
+	#project_dir="$HOME/oprojects"
 	project_dir="$HOME/projects"
 
 	printf '%s' "$organisation_repo" | while read org_repo; do
-		org_name="$(printf '%s' "$org_repo" | awk -F[':'] '{print $0}')"
-		org_list="$(printf '%s' "$org_repo" | awk -F[':'] '{print $1}')"
+		org_name=$(printf '%s' "$org_repo" | cut -d: -f1)
+		org_list=$(printf '%s' "$org_repo" | cut -d: -f2)
 
-		for i in $org_list; do
-			repository="$(readlink -f "$project_dir/$i")"
-
-			[ -x "$repository" ]      || continue
-			[ -d "$repository/.git" ] || continue
-
-			cd "$repository"
-			if git status | tail -n1 | grep -qE 'nothing to commit'
-			then
-				print 'on %s...\n' "$i"
-				for j in $remote_repo; do __push $org_name $j $i; done
-			else
-				warn "ignoring '$i'"
-			fi
-		done
+		__repositories "$project_dir" "$org_list" "$org_name" 0
 	done
 }
 
-prerequisite() { for i in "$@"; do command -v "$i" >/dev/null || die "$program: $i not found"; done; }
+first_have() { for i in "$@"; do command -v "$i" >/dev/null || die "$program: $i not found"; done; }
 
-program="${0##*/}"
-prerequisite git tok gcreate
+first_have git tok gcreate
 
-main "$@" #> "$HOME/.push-star.log" 2>&1
+main "$@"
+#> "$HOME/.push-star.log" 2>&1
