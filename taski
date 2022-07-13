@@ -1,5 +1,16 @@
 #!/usr/bin/env sh
 
-set -- zdocs mdocs msearch
-for i in "$@"; do printf '%s\n' "$i"; done | dmenu -p 'Run ' -h 23 | sh
 ### dmenu -y 41 -x 3 -p 'Run ' -h 23 | sh
+set -- zdocs mdocs msearch
+
+printf '%s\n' "$@" | dmenu -p 'Run ' -h 23 |
+
+{	while read apps; do
+		case $apps in
+			zdocs) printf '%s\n' "zdocs -z" ;;
+			mdocs) printf '%s\n' "zdocs -m" ;;
+			*)     printf '%s' "$apps"      ;;
+		esac
+	done
+} | sh
+

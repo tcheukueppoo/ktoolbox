@@ -25,6 +25,16 @@ EOF
 run="personal_repositories"
 services="github.com gitlab.com codeberg.org"
 
+usage() {
+	cat<<EOU
+wrapper under git-push to push changes to multiple remote repositories
+usage:
+    push-star <-O|-P> <-p <repo_name:project_name>> [-r <github.com|gitlag.com|codeberg.org>]
+    push-star <-h>
+EOU
+	exit #$1
+}
+
 warn() { printf '%s: %s\n' "$pname" "$*" >&2; return 1; }
 
 die() { warn "$*"; exit 1; }
@@ -34,12 +44,13 @@ die() { warn "$*"; exit 1; }
 main() {
 	if [ $# -ne 0 ]
 	then
-		while getopts :r:p:OP option; do
+		while getopts :r:p:OPh option; do
 			case "$option" in
-				O) run=organi_repositories ;;
-				P) run=personal_repositories ;;
 				p) idk_yet=$OPTARG ;;
 				r) services=$OPTARG ;;
+				O) run=organi_repositories ;;
+				P) run=personal_repositories ;;
+				h) usage ;;
 				\?) eval die "$`expr $OPTIND - 1`" "is an unrecognized option\n" ;;
 			esac
 		done

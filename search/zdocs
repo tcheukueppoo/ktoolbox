@@ -21,14 +21,15 @@ open_pdf_file() {
 main() {
 	if [ $# -eq 1 -o $# -eq 0 ]
 	then
-		if [ "$1" = -m ]
+		if   [ "$1" = -m ]
 		then
 			pdf_bin="mupdf"
 			file_types="\( -iname '*.chm' -or -iname '*.xps' -or -iname '*.pdf' -or -iname '*.cbz' \)"
 		elif [ "$1" = -z ]
 		then :;
-		else exit 1; fi
-
+		else
+			exit 1
+		fi
 		command -v "$pdf_bin" && set_and_check_dirs "$home_dir/Documents" "$home_dir/Downloads" "$home_dir/.local/share" /mnt2/books && open_pdf_file
 	fi
 }

@@ -6,10 +6,10 @@ readonly program="${0##*/}"
 access=false
 
 usage() {
-	printf "create remote repositories with gcreate"
+	printf "create remote repositories with gcreate\n"
 	printf "usage:\n\n"
+	printf "     gcreate <--help|-h>\n"
 	printf "     gcreate [-p] -r <gitlab.com|codeberg.org|...> -n <repo_name> -d <description>\n"
-	printf "     gcreate --help|-h\n"
 }
 
 die() { printf "%s: %s\n" "$pname" "$*"; exit 1; }
