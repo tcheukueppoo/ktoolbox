@@ -91,7 +91,7 @@ __push() {
 	test "$domain" = "gitlab.com" && private=create:
 	if can_ping $domain; then
 		olink="https://${private}$(tok ${domain%%.*})@$domain/$name/$repo"
-		git push "$olink" || warn "couldn't push to $domain."
+		git push --set-upstream "$olink" || warn "couldn't push to $domain."
 	fi
 }
 

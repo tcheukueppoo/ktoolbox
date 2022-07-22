@@ -1,0 +1,20 @@
+#!/bin/sh
+
+if_ok() {
+	command -v curl tok >/dev/null || { printf "pub depends on: tok, curl!!\n"; return 1; } 
+}
+
+ch_vi() {
+	printf '%s' "$1" | grep -q '[-a-zA-Z]\+' || { printf "invalid '%s'\n" "$2"; return 1; }
+	[ "$2" = private -o "$2" = public ]      || { printf "invalid '%s'\n" "$2"; return 1; }
+
+	curl \
+	  --request PATCH \
+	  --header  "Accept: application/vnd.github+json"         \
+	  --header  "Authorization: token $(tok github)"          \
+	  --url     "https://api.github.com/repos/tcheukueppo/$1" \
+	  --data    '{"name":"'"$1"'","description":"'"$3"'","homepage":"https://github.com"}'
+}
+
+[ $# -ne 3 ] && { printf "usage: pub <github_repo_name> <true|false>\n"; exit 1; }
+if_ok && ch_vi "$1" "$2" "$3"
