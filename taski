@@ -1,4 +1,4 @@
-#!/usr/bin/env sh
+#!/bin/sh
 
 ### dmenu -y 41 -x 3 -p 'Run ' -h 23 | sh
 set -- zdocs mdocs msearch
