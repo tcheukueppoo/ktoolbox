@@ -1,13 +1,32 @@
 #!/bin/sh
 
-if_ok() {
-	command -v curl tok >/dev/null || { printf "pub depends on: tok, curl!!\n"; return 1; } 
+have_curl_and_tok() {
+	command -v curl tok >/dev/null 
+	if [ $? -ne 0 ] 
+	then
+		printf "pub depends on: tok, curl!!\n" >&2
+		return 1
+	fi
 }
 
-ch_vi() {
-	printf '%s' "$1" | grep -q '[-a-zA-Z]\+' || { printf "invalid '%s'\n" "$2"; return 1; }
-	[ "$2" = private -o "$2" = public ]      || { printf "invalid '%s'\n" "$2"; return 1; }
+change_visibility() {
 
+	# check if repo name is valid
+	printf "$1" | grep -q '[-a-zA-Z]\+' 
+	if [ $? -ne 0 ]
+	then
+		printf "invalid '%s'\n" "$2"
+		return 1
+	fi
+
+	# either public or private, nothing else
+	if [ "$2" = private -o "$2" = public ]
+	then
+		printf "invalid '%s'\n" "$2"
+		return 1
+	fi
+
+	# consume the API
 	curl \
 	  --request PATCH \
 	  --header  "Accept: application/vnd.github+json"         \
@@ -16,5 +35,14 @@ ch_vi() {
 	  --data    '{"name":"'"$1"'","description":"'"$3"'","homepage":"https://github.com"}'
 }
 
-[ $# -ne 3 ] && { printf "usage: pub <github_repo_name> <true|false>\n"; exit 1; }
-if_ok && ch_vi "$1" "$2" "$3"
+if [ $# -ne 3 ]
+then
+	printf "usage:\n"
+	printf "  pub <github_repo_name> <true|false>\n"
+	exit 1
+fi
+
+if have_curl_and_tok
+then
+	change_visibility "$@"
+fi
