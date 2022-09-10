@@ -1,144 +1,78 @@
 #!/bin/sh
 
-pname=${0##*/}
+#
+# Auto update remote repositories
+#
 
-username=tcheukueppo
+if ! command -v git >/dev/null; then
+	printf "ERR: git not found, where is it?\n" >&2
+	exit 1
+fi
 
-##<<<<< cron should add new repositories here
-personal_repo=$(cat<<-EOF
-	wfmux farbfeld-utils apriori kdmenu kuttix
-	learn gists ktoolbox svis snvim conky.store
-	kst kdwm ksent kslock kfetch kslstatus
-	krit weeklychallenge sia sad raku-matrix
-	myresources amonia orangebar herbe
-	perl-matrix sysutils farbfeld-4
-EOF
-)
+if ! command -v tok >/dev/null; then
+	printf "ERR: tok not found, where is it?\n" >&2
+	exit 1
+fi
 
-##<<<<< cron should add new repositories here too
-organisation_repo=$(cat<<-EOF
-	lisa:lisad lisa
-	paranoid:paranoid
-EOF
-)
+for i in \
+					projects/wfmux \
+					projects/farbfeld-utils \
+					projects/apriori \
+					projects/kdmenu  \
+					projects/kuttix \
+					projects/learn \
+					projects/gists \
+					projects/ktoolbox \
+					projects/conky.store \
+					projects/kst \
+					projects/kdwm \
+					projects/ksent \
+					projects/kslock \
+					projects/kfetch \
+					projects/kslstatus \
+					projects/krit \
+					projects/weeklychallenge \
+					projects/sad \
+					projects/myresources \
+					projects/amonia \
+					projects/orangebar \
+					projects/herbe \
+					projects/farbfeld-4 \
+do
+	repo_dir="$HOME/$i"
 
-run="personal_repositories"
-services="github.com gitlab.com codeberg.org"
-
-usage() {
-	cat<<EOU
-wrapper under git-push to push changes to multiple remote repositories
-usage:
-    push-star <-O|-P> <-p <repo_name:project_name>> [-r <github.com|gitlag.com|codeberg.org>]
-    push-star <-h>
-EOU
-	exit #$1
-}
-
-warn() { printf '%s: %s\n' "$pname" "$*" >&2; return 1; }
-
-die() { warn "$*"; exit 1; }
-
-## push-star -r github.com:gitlab.com:codeberg.org -p tcheukueppo:kdwm -P
-## push-star -r github.com:gitlab.com:codeberg.org -p lisa:lisad -O
-main() {
-	if [ $# -ne 0 ]
+	if [ -d "$repo_dir" -a -d "$repo_dir/.git" ]
 	then
-		while getopts :r:p:OPh option; do
-			case "$option" in
-				p) idk_yet=$OPTARG ;;
-				r) services=$OPTARG ;;
-				O) run=organi_repositories ;;
-				P) run=personal_repositories ;;
-				h) usage ;;
-				\?) eval die "$`expr $OPTIND - 1`" "is an unrecognized option\n" ;;
-			esac
-		done
+		real_path="$(readlink -f "$repo_dir")"
 
-		shift $(expr $OPTIND - 1)
-		## Check arguments validity
-	
-		services=$(printf '%s' "$services" | tr ':' ' ')
-		if [ "$run" = personal_repositories ]
+		cd "$real_path"
+		if [ $? -eq 0 ]
 		then
-			username=$(printf '%s' "$idk_yet" | cut -d: -f1)
-			personal_repo=$(printf '%s' "$idk_yet" | cut -d: -f2)
-		else
-			organisation_repo=$idk_yet
-		fi
-	fi
+			repo_name="${i##*/}"
 
-	eval "$run"
-}
+			printf "Updating %s ...\n" "$repo_name"
 
-## Check if host is reachable
-can_ping() {
-	count=1
-	domain=$1
+			git branch | while read branch_name
+			do
+				branch_name="${branch_name#* }"
 
-	while [ $count -lt 4 ]; do
-		ping -c 3 -w 5 "$domain" >/dev/null 2>&1 && return
-		warn "couldn't connect to $domain, will try after 3 seconds"
-		sleep 3
-		count=`expr $count + 1`
-	done
-	warn "host $domain is unreachable, exiting."
-}
+				printf "\tbranch: %s " "$branch_name"
 
-__push() {
-	name=$1; domain=$2; repo=$3; private=
+				{
+					# We don't want to force push, handle that on your own.
+					git push -u "https://$(tok codeberg)@codeberg.org/tcheukueppo/$repo_name" "$branch_name"    &&
+					git push -u "https://$(tok github)@github.com/tcheukueppo/$repo_name" "$branch_name"        &&
+					git push -u "https://create:$(tok gitlab)@gitlab.com/tcheukueppo/$repo_name" "$branch_name"
 
-	test "$domain" = "gitlab.com" && private=create:
-	if can_ping $domain; then
-		olink="https://${private}$(tok ${domain%%.*})@$domain/$name/$repo"
-		git push --set-upstream "$olink" || warn "couldn't push to $domain."
-	fi
-}
+				} >/dev/null 2>&1 && 
 
-__repositories() {
-	project_dir=$1; repo=$2; uoname=$3; bit=$4
-
-	for repo_name in $repo; do
-		repository=$(readlink -f "$project_dir/$repo_name")
-
-		[ -x "$repository" ]      || continue
-		[ -d "$repository/.git" ] || continue
-
-		cd "$repository"
-		if git status | tail -n1 | grep -qE 'nothing to commit'
-		then
-			printf 'on %s...\n' "$repo_name"
-			for service in $services; do
-				[ $bit -eq 1 ] && gcreate -p -r "$service" -n "$repo_name" -d "$repo_name"
-				__push $uoname $service $repo_name
+				printf "*\n" || printf "X\n"
 			done
+
+			printf "Done.\n"
 		else
-			warn "ignoring '$repo_name'"
+			printf "ERR: couldn't \`cd' to '%s'\n" "$real_path" >&2
+			exit 1
 		fi
-	done
-
-}
-
-personal_repositories() {
-	project_dir="$HOME/projects"
-	__repositories "$project_dir" "$personal_repo" "$username" 1
-}
-
-organi_repositories() {
-	#project_dir="$HOME/oprojects"
-	project_dir="$HOME/projects"
-
-	printf '%s' "$organisation_repo" | while read org_repo; do
-		org_name=$(printf '%s' "$org_repo" | cut -d: -f1)
-		org_list=$(printf '%s' "$org_repo" | cut -d: -f2)
-
-		__repositories "$project_dir" "$org_list" "$org_name" 0
-	done
-}
-
-first_have() { for i in "$@"; do command -v "$i" >/dev/null || die "$program: $i not found"; done; }
-
-first_have git tok gcreate
-
-main "$@"
-#> "$HOME/.push-star.log" 2>&1
+	fi
+done
