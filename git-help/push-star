@@ -43,18 +43,18 @@ do
 
 	if [ -d "$repo_dir" -a -d "$repo_dir/.git" ]
 	then
-		real_path="$(readlink -f "$repo_dir")"
+		real_path=$(readlink -f "$repo_dir")
 
 		cd "$real_path"
 		if [ $? -eq 0 ]
 		then
-			repo_name="${i##*/}"
+			repo_name=${i##*/}
 
 			printf "Updating %s ...\n" "$repo_name"
 
 			git branch | while read branch_name
 			do
-				branch_name="${branch_name#* }"
+				branch_name=${branch_name#* }
 
 				printf "\tbranch: %s " "$branch_name"
 
