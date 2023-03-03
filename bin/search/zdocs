@@ -6,32 +6,32 @@ pdf_bin="zathura"
 file_types="-iname '*.pdf'"
 
 set_and_check_dirs() {
-	for dir in "$@"; do [ -r "$dir" ] && [ -d "$dir" ] && direcs="$direcs${direcs:+ }'$dir'"; done
-	test -n "$direcs"
+   for dir in "$@"; do [ -r "$dir" ] && [ -d "$dir" ] && direcs="$direcs${direcs:+ }'$dir'"; done
+   test -n "$direcs"
 }
 
 open_pdf_file() {
-	cache=${XDG_HOME_CACHE:-"$home_dir/.cache"}
-	dcache="$cache/zdocs"
-	pdf=$(eval "find $direcs -type f $file_types -print" | tee "$dcache" | while read base; do echo `basename "$base"`; done | dmenu -c -p "Search" -z 600 -l 20 -h 20 -i)
-	pdf=$(cat "$dcache" | grep "/$pdf$" | head -n1)
-	[ -n "$pdf" ] && $pdf_bin "$pdf"
+   cache=${XDG_HOME_CACHE:-"$home_dir/.cache"}
+   dcache="$cache/zdocs"
+   pdf=$(eval "find $direcs -type f $file_types -print" | tee "$dcache" | while read base; do echo `basename "$base"`; done | dmenu -c -p "Search" -z 600 -l 20 -h 20 -i)
+   pdf=$(cat "$dcache" | grep "/$pdf$" | head -n1)
+   [ -n "$pdf" ] && $pdf_bin "$pdf"
 }
 
 main() {
-	if [ $# -eq 1 -o $# -eq 0 ]
-	then
-		if   [ "$1" = -m ]
-		then
-			pdf_bin="mupdf"
-			file_types="\( -iname '*.chm' -or -iname '*.xps' -or -iname '*.pdf' -or -iname '*.cbz' \)"
-		elif [ "$1" = -z ]
-		then :;
-		else
-			exit 1
-		fi
-		command -v "$pdf_bin" && set_and_check_dirs "$home_dir/Documents" "$home_dir/Downloads" "$home_dir/.local/share" /mnt2/books && open_pdf_file
-	fi
+   if [ $# -eq 1 -o $# -eq 0 ]
+   then
+      if   [ "$1" = -m ]
+      then
+	 pdf_bin="mupdf"
+	 file_types="\( -iname '*.chm' -or -iname '*.xps' -or -iname '*.pdf' -or -iname '*.cbz' \)"
+      elif [ "$1" = -z ]
+      then :;
+      else
+	 exit 1
+      fi
+      command -v "$pdf_bin" && set_and_check_dirs "$home_dir/Documents" "$home_dir/Downloads" "$home_dir/.local/share" /mnt2/books && open_pdf_file
+   fi
 }
 
 main "$@" >/dev/null 2>&1

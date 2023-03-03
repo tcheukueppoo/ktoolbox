@@ -4,43 +4,42 @@ echo "got $1" >/tmp/look
 exit 0
 
 main() {
-	[ -z "$1" ] && return
+  [ -z "$1" ] && return
 
-	make_pipe
-	tell_mountfs "$1"
+  make_pipe
+  tell_mountfs "$1"
 }
 
 # Create named-pipe if absent
 make_pipe() {
-	test -p "$pipe" || mkfifo --mode=700 "$pipe"
+   test -p "$pipe" || mkfifo --mode=700 "$pipe"
 }
 
 # Tell mountfs daemon to mount block device
 tell_mountfs() {
-	local devpath=$1
-	local block="/dev/$(basename $devpath 2>/dev/null)"
+  local devpath=$1
+  local block="/dev/$(basename $devpath 2>/dev/null)"
 
-	if [ -b "$block" ]
-	then
-		local mounts=`cat /prot/mounts | sed -nE 's,(/dev/[^\s]*) (/mnt[0-9]+),\1:\2,p'`
+  if [ -b "$block" ]
+  then
+      local mounts=`cat /prot/mounts | sed -nE 's,(/dev/[^\s]*) (/mnt[0-9]+),\1:\2,p'`
+      for mpoint in /mnt*
+      do
+	 mpoint=$(printf "$mpoint\n" | sed -ne '\,/mnt[2-9]\+,p')
+	 local dev=$(printf "$mounts\n" | sed -nE "s,([^:]*):$mpoint,\1,p")
 
-		for mpoint in /mnt*
-		do
-			mpoint=$(printf "$mpoint\n" | sed -ne '\,/mnt[2-9]\+,p')
-			local dev=$(printf "$mounts\n" | sed -nE "s,([^:]*):$mpoint,\1,p")
+	 # If $dev is an oldly mounted block device, use it instead
+	 if [ ! -n "/dev/$dev" ]
+	 then
+	    printf '%s:%s\n' $mpoint $block >$named_pipe
+	    return
+	 fi
+      done
 
-			# If $dev is an oldly mounted block device, use it instead
-			if [ ! -n "/dev/$dev" ]
-			then
-				printf '%s:%s\n' $mpoint $block >$named_pipe
-				return
-			fi
-		done
-
-		mpoint="mnt$(( ${mpoint#mnt} + 1 ))"
-		mkdir -p $mpoint
-		printf '%s:%s\n' $mpoint $block >$named_pipe
-	fi
+      mpoint="mnt$(( ${mpoint#mnt} + 1 ))"
+      mkdir -p $mpoint
+      printf '%s:%s\n' $mpoint $block >$named_pipe
+   fi
 }
 
 pipe="/tmp/mountfs.pipe"

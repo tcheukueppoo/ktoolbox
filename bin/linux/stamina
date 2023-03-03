@@ -8,12 +8,12 @@
 #          Author: kueppo
 
 if test $(uname) != Linux; then
-	echo "${0#./} should be run on a linux system" >&2
-	exit 1
+  echo "${0#./} should be run on a linux system" >&2
+  exit 1
 fi
 if test $(id -u) -ne 0; then
-	echo "root permission needed" >&2
-	exit 1
+  echo "root permission needed" >&2
+  exit 1
 fi
 
 null='&>/dev/null' && export null
@@ -33,130 +33,125 @@ EOF
 }
 
 check() {
-	local toins=''
+   local toins=''
 
-	# to switch to from a storage device to a modem
-	# send bulk message to the device with usb_modeswitch
-	echo "warn: mode switch the usb device(usb_modeswitch)"
-	printf 'checking dependencies ...'
-	command -v usb_modeswitch >/dev/null || toins="usb_modeswitch"
-	command -v ModemManager >/dev/null || toins="ModemManger${toins:+, }${toins}"
-	command -v NetworkManager >/dev/null || toins="NetworkManager${toins:+, }${toins}"
-	if test -n "$toins"; then
-		echo failed
-		if echo $toins | fgrep -q ','; then
-			printf '%s and %s are needed\n' "${toins%,*}" "${toins##* }"
-		else
-			printf '%s is needed\n' "${toins}"
-		fi
-		return 1
-	fi
-	echo ok
-	return 0
+   # to switch to from a storage device to a modem
+   # send bulk message to the device with usb_modeswitch
+   echo "warn: mode switch the usb device(usb_modeswitch)"
+   printf 'checking dependencies ...'
+   command -v usb_modeswitch >/dev/null || toins="usb_modeswitch"
+   command -v ModemManager >/dev/null || toins="ModemManger${toins:+, }${toins}"
+   command -v NetworkManager >/dev/null || toins="NetworkManager${toins:+, }${toins}"
+   if test -n "$toins"; then
+      echo failed
+      if echo $toins | fgrep -q ','; then
+	 printf '%s and %s are needed\n' "${toins%,*}" "${toins##* }"
+      else
+	 printf '%s is needed\n' "${toins}"
+      fi
+      return 1
+   fi
+   echo ok
+   return 0
 }
 
 servck() {
-	local excode=0
+   local excode=0
 
-	printf 'enabling ModemManager service ...'
-	if ! eval systemctl enable ModemManager ${null}; then
-		echo failed
-		((excode++))
-	fi
-	echo ok
-	printf 'starting ModemManger service ...'
-	if ! eval systemctl start ModemManager ${null}; then
-		echo failed
-		((excode++))
-	fi
-	echo ok
-	printf 'enabling NetworkManager service ...'
-	if ! eval systemctl enable NetworkManager ${null}; then
-		echo failed
-		((excode++))
-	fi
-	echo ok
-	printf 'starting NetworkManager service ...'
-	if ! eval systemctl restart NetworkManager ${null}; then
-		echo failed
-		((excode++))
-	fi
-	echo ok
-	test "$excode" -eq 0 && return 0 || return 1
+   printf 'enabling ModemManager service ...'
+   if ! eval systemctl enable ModemManager ${null}; then
+      echo failed
+      ((excode++))
+   fi
+   echo ok
+   printf 'starting ModemManger service ...'
+   if ! eval systemctl start ModemManager ${null}; then
+      echo failed
+      ((excode++))
+   fi
+   echo ok
+   printf 'enabling NetworkManager service ...'
+   if ! eval systemctl enable NetworkManager ${null}; then
+      echo failed
+      ((excode++))
+   fi
+   echo ok
+   printf 'starting NetworkManager service ...'
+   if ! eval systemctl restart NetworkManager ${null}; then
+      echo failed
+      ((excode++))
+   fi
+   echo ok
+   test "$excode" -eq 0 && return 0 || return 1
 }
 
 pppcon() {
-	local pport
-	local timeout=0
+   local pport
+   local timeout=0
 
-	printf 'listening to usb modems ...'
-	while test "$(mmcli -L)" = "No modems were found"; do
-		test $timeout = 8 && break
-		sleep 4
-		((timeout++))
-	done
-	test $timeout -lt 8 && echo ok || { echo failed; return 1; }
-	# get modem index
-	index="$(mmcli -L | cut -d/ -f6 | cut -d ' ' -f1)"
-	if ! echo "$index" | grep -q '[0-9]\{1,\}'; then
-		echo 'could not get modem index' >&2
-		return 1
-	fi
-	# create a persistent connection with networkmanager
-	if nmcli connection show | grep -q '^Stamina '; then
-		wmsg() {
-			echo 'warning: this script should be run once, it creates'
-			echo 'a persistent connection to a usb modem by creating'
-			echo 'an active connection with NetworkManager so run'
-			echo '`stamina -k` do delete the NetworkManager active'
-			echo 'connection.'
-		}
-		wmsg
-		nmcli radio wwan on
-		return 1
-	fi
-	pport="$(mmcli -m $index | fgrep 'primary port' | cut -d: -f2)"
-	pport=${pport## }
-	if test -c "/dev/$pport"; then
-		nmcli radio wwan on
-		nmcli connection add type gsm ifname "$pport" con-name "Stamina" apn "$1"
-		test $? -eq 0 && printf "usb modem connection succeeded"
-	fi
-	return 0
+   printf 'listening to usb modems ...'
+   while test "$(mmcli -L)" = "No modems were found"; do
+      test $timeout = 8 && break
+      sleep 4
+      ((timeout++))
+   done
+   test $timeout -lt 8 && echo ok || { echo failed; return 1; }
+   # get modem index
+   index="$(mmcli -L | cut -d/ -f6 | cut -d ' ' -f1)"
+   if ! echo "$index" | grep -q '[0-9]\{1,\}'; then
+      echo 'could not get modem index' >&2
+      return 1
+   fi
+   # create a persistent connection with networkmanager
+   if nmcli connection show | grep -q '^Stamina '; then
+      wmsg() {
+	 echo 'warning: this script should be run once, it creates'
+	 echo 'a persistent connection to a usb modem by creating'
+	 echo 'an active connection with NetworkManager so run'
+	 echo '`stamina -k` do delete the NetworkManager active'
+	 echo 'connection.'
+      }
+      wmsg
+      nmcli radio wwan on
+      return 1
+   fi
+   pport="$(mmcli -m $index | fgrep 'primary port' | cut -d: -f2)"
+   pport=${pport## }
+   if test -c "/dev/$pport"; then
+      nmcli radio wwan on
+      nmcli connection add type gsm ifname "$pport" con-name "Stamina" apn "$1"
+      test $? -eq 0 && printf "usb modem connection succeeded"
+   fi
+   return 0
 }
 
 kilcon() {
-	local gguid
-
-	if ! nmcli connection show | grep -q '^Stamina '; then
-		echo 'no connection found' >&2
-		return 1
-	fi
-	printf 'attempting to delete the connection ...'
-	gguid=$(nmcli connection show | grep '^Stamina ' | \
-		sed -n 's/^[^ ]\+ \+\([^ ]\+\).\+/\1/p')
-	nmcli connection delete "$gguid"  && echo ok || echo failed
-	return 0
+   local gguid
+   if ! nmcli connection show | grep -q '^Stamina '; then
+      echo 'no connection found' >&2
+      return 1
+   fi
+   printf 'attempting to delete the connection ...'
+   gguid=$(nmcli connection show | grep '^Stamina ' | sed -n 's/^[^ ]\+ \+\([^ ]\+\).\+/\1/p')
+   nmcli connection delete "$gguid"  && echo ok || echo failed
+   return 0
 }
 
 stamina() {
-	case $# in
-	0)	usage >&2
-		;;
-	1)	case $1 in
-		-k|--kill)
-			kilcon ;;
-		-h|--help)
-			usage ;;
-		*)	check >&2 || exit 1
-			printf 'connecting to a usb modem with apn "%s"\n' "$1"
-			servck || return 1
-			pppcon "$1" || return 1 ;;
-		esac ;;
-	*)	echo 'invalid number of arguments' >&2
-		;;
-	esac
-	return 0
+   case $# in
+      0) usage >&2 ;;
+      1)
+	 case $1 in
+	    -k|--kill) kilcon ;;
+	    -h|--help) usage ;;
+	    *) check >&2 || exit 1
+	       printf 'connecting to a usb modem with apn "%s"\n' "$1"
+	       servck || return 1
+	       pppcon "$1" || return 1 ;;
+	 esac ;;
+      *) echo 'invalid number of arguments' >&2 ;;
+   esac
+   return 0
 }
 
 ##

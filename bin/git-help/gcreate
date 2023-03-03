@@ -6,61 +6,60 @@ readonly program="${0##*/}"
 access=false
 
 usage() {
-	printf "create remote repositories with gcreate\n"
-	printf "usage:\n\n"
-	printf "     gcreate <--help|-h>\n"
-	printf "     gcreate [-p] -r <gitlab.com|codeberg.org|...> -n <repo_name> -d <description>\n"
+   printf "create remote repositories with gcreate\n"
+   printf "usage:\n\n"
+   printf "     gcreate <--help|-h>\n"
+   printf "     gcreate [-p] -r <gitlab.com|codeberg.org|...> -n <repo_name> -d <description>\n"
 }
 
 die() { printf "%s: %s\n" "$pname" "$*"; exit 1; }
 
 main() {
-	test $# -lt 6 && { usage; return; }
+   test $# -lt 6 && { usage; return; }
 
-	while [ $# -ne 0 ]; do
-		case $1 in
-			-p) access=true; shift ;;
-			-r) remote=$2; shift 2 ;;
-			-n) name=$2; shift 2   ;;
-			-d) descript=$2; shift 2 ;;
-			 *) usage; exit 1        ;;
-		esac
-	done
-	create_repo
+   while [ $# -ne 0 ]; do
+      case $1 in
+	 -p) access=true; shift ;;
+	 -r) remote=$2; shift 2 ;;
+	 -n) name=$2; shift 2   ;;
+	 -d) descript=$2; shift 2 ;;
+	 *) usage; exit 1        ;;
+      esac
+   done
+   create_repo
 }
 
 create_repo() {
+   header=; data=; api_url=
+   service=${remote%.*}
+   content="Content-Type: application/json"
 
-	header=; data=; api_url=
-	service=${remote%.*}
-	content="Content-Type: application/json"
+   printf '%s' "$name" | grep -q '[[:space:]]' && die "'$name' is not a invalid repository name"
 
-	printf '%s' "$name" | grep -q '[[:space:]]' && die "'$name' is not a invalid repository name"
+   if [ "$service" = codeberg ]
+   then
+      api_url="https://codeberg.org/api/v1/user/repos"
+      header="Authorization: token $(tok codeberg)"
+      data='{"default_branch":"master","description":"'"$descript"'","license":"GPL3","name":"'$name'","private":'$access',"template":true,"trust_model":"default"}'
+   elif [ "$service" = github ]
+   then
+      api_url="https://api.github.com/user/repos"
+      header="Authorization: token $(tok github)"
+      data='{"name":"'$name'","private":'$access'}'
+   elif [ "$service" = gitlab ]
+   then
+      api_url="https://gitlab.com/api/v4/projects/"
+      header="PRIVATE-TOKEN: $(tok gitlab)"
+      data='{"name":"'$name'","initialize_with_readme":"false"}'
+   else
+      die "cannot handle token for such service"
+   fi
 
-	if [ "$service" = codeberg ]
-	then
-		api_url="https://codeberg.org/api/v1/user/repos"
-		header="Authorization: token $(tok codeberg)"
-		data='{"default_branch":"master","description":"'"$descript"'","license":"GPL3","name":"'$name'","private":'$access',"template":true,"trust_model":"default"}'
-	elif [ "$service" = github ]
-	then
-		api_url="https://api.github.com/user/repos"
-		header="Authorization: token $(tok github)"
-		data='{"name":"'$name'","private":'$access'}'
-	elif [ "$service" = gitlab ]
-	then
-		api_url="https://gitlab.com/api/v4/projects/"
-		header="PRIVATE-TOKEN: $(tok gitlab)"
-		data='{"name":"'$name'","initialize_with_readme":"false"}'
-	else
-		die "cannot handle token for such service"
-	fi
-
-	curl --request POST       \
-	     --header  "$header"  \
-		 --header  "$content" \
-	     --data    "$data"    \
-	     --url     "$api_url" >/dev/null 2>&1
+   curl --request POST       \
+        --header  "$header"  \
+        --header  "$content" \
+        --data    "$data"    \
+        --url     "$api_url" >/dev/null 2>&1
 }
 
 command -v tok >/dev/null || die "$pname: tok not found"
