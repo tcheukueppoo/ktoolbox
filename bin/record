@@ -70,10 +70,10 @@ parse_checks_args() {
    fi
 
    OUT_DIR=$(printf '%s\n' "$OUT_FILE" | sed -e 's#^\(.\+\)/\?[^/]\+/\?$#\1#')
-   if [ -w "$OUT_DIR" ] ; then
+   test -w "$OUT_DIR" || {
       printf "%s: ERROR: cannot write to \`%s'\n" "$0" "$OUT_DIR" >&2
       exit 1
-   fi
+   }
 }
 
 record() {
