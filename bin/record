@@ -1,14 +1,106 @@
 #!/bin/sh
 
-FF_OPTS=$(
-   xwininfo |
-   awk '
-      /Height:/{ h = substr($0, 11); }
-      /Width:/{ w=substr($0, 10) }
-      /^[\t ]*A.* X:/{ x = substr($0, 27) }
-      /^[\t ]*A.* Y:/{ y = substr($0, 27) }
-      END{ print "-video_size " w "x" h " -i :0.0+" x "," y }
-   '
-)
+# Record an X window with ffmpeg
 
-eval "ffmpeg -f x11grab -framerate 25 $FF_OPTS -pix_fmt rgba -qp 0 -preset ultrafast -frames 100 -y /tmp/out.mp4"
+# globals
+OUT_FILE=''
+BORDER_PIXEL=''
+FRAME_RATE=''
+
+usage() {
+   printf 'Usage: %s [-h] [-f FRAME_RATE] [-p NUM_PIXELS ] OUT_FILE\n' "$0" >&2
+   printf '\t-h: display this help message and exit.\n' >&2
+   printf '\t-f: set video framerate.\n' >&2
+   printf '\t-p: set border pixel of the selected window.\n' >&2
+   printf '\n\tOUT_FILE: output file.\n' >&2
+
+   exit 1
+}
+
+check_req() {
+   local TOOL=''
+
+   for TOOL in xwininfo ffmpeg ; do
+      command -v ffmpeg >/dev/null || {
+         printf "%s: ERROR: \`%s' not found\n" "$0" "$TOOL" >&2
+         exit 1
+      }
+   done
+}
+
+parse_checks_args() {
+   local BASE_DIR='' OUT_DIR=''
+
+   is_digit() {
+      expr "$2" : '[0-9]\+$' >/dev/null || {
+         printf "%s: ERROR: \`%s' must be a digit\n" "$0" "$1">&2
+         exit 1
+      }
+   }
+
+   while test $# -gt 0 ; do
+      expr "$1" : '-h$' >/dev/null && usage
+      case "$1" in
+         -f)
+            test $# -lt 2 && usage
+            is_digit framerate "$2"
+            FRAME_RATE=$2
+            ;;
+         -p)
+            test $# -lt 2 && usage
+            is_digit "border pixel" "$2"
+            PIXEL_BORDER=$2
+            ;;
+         -*)
+            printf "%s: ERROR: unknown options \`%s'\n" "$0" "$1" >&2
+            shift 2
+            ;;
+          *)
+            test $# -gt 1 && usage
+            OUT_FILE=$1
+            break
+            ;;
+      esac
+   done
+
+   if [ -z "$OUT_FILE" ] ; then
+      printf "%s: ERROR: you must set output file\n" "$0" >&2
+      usage
+   fi
+
+   OUT_DIR=$(printf '%s\n' "$OUT_FILE" | sed -e 's#^\(.\+\)/\?[^/]\+/\?$#\1#')
+   if [ -w "$OUT_DIR" ] ; then
+      printf "%s: ERROR: cannot write to \`%s'\n" "$0" "$OUT_DIR" >&2
+      exit 1
+   fi
+}
+
+record() {
+   local FF_OPTS=$(
+      xwininfo | awk -v BORDER_PIXEL=$BORDER_PIXEL '
+         /Height:/ { h = substr($0, 11) }
+         /Width:/  { w = substr($0, 10) }
+         /^[\t ]*A.* X:/ { x = substr($0, 27) }
+         /^[\t ]*A.* Y:/ { y = substr($0, 27) }
+         END {
+            if (BORDER_PIXEL) {
+               x -= BORDER_PIXEL
+               y -= BORDER_PIXEL
+               w += (2 * BORDER_PIXEL)
+               h += (2 * BORDER_PIXEL)
+            }
+            print "-video_size " w "x" h " -i :0.0+" x "," y
+         }
+      '
+   )
+
+   echo "ffmpeg -hide_banner -f x11grab -framerate $FRAME_RATE $FF_OPTS -pix_fmt rgba -qp 0 -preset ultrafast -frames 100 -y '$OUT_FILE'"
+}
+
+main() {
+   check_req
+   parse_checks_args "$@"
+   record
+}
+
+main "$@"
