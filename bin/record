@@ -1,0 +1,14 @@
+#!/bin/sh
+
+FF_OPTS=$(
+   xwininfo |
+   awk '
+      /Height:/{ h = substr($0, 11); }
+      /Width:/{ w=substr($0, 10) }
+      /^[\t ]*A.* X:/{ x = substr($0, 27) }
+      /^[\t ]*A.* Y:/{ y = substr($0, 27) }
+      END{ print "-video_size " w "x" h " -i :0.0+" x "," y }
+   '
+)
+
+eval "ffmpeg -f x11grab -framerate 25 $FF_OPTS -pix_fmt rgba -qp 0 -preset ultrafast -frames 100 -y /tmp/out.mp4"
