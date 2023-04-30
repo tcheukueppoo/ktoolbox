@@ -36,23 +36,23 @@ func_myprompt() {
 
    while read -p "${PS2:-> }" query; do
        if test -z "$query"; then
-	 continue
+    continue
        elif echo $query | grep -q '^\*[\*0-9]*#$'; then
-	 func_check_status && mmcli -m $getidex --3gpp-ussd-cancel &>/dev/null
-	 mmcli -m $getidex --3gpp-ussd-initiate="$query" | func_struct_regex
-	 continue
+    func_check_status && mmcli -m $getidex --3gpp-ussd-cancel &>/dev/null
+    mmcli -m $getidex --3gpp-ussd-initiate="$query" | func_struct_regex
+    continue
        fi
        case "$query" in
        e|q|exit|quit)
-	 func_check_status && mmcli -m $getidex --3gpp-ussd-cancel
-	 break
-	 ;;
+    func_check_status && mmcli -m $getidex --3gpp-ussd-cancel
+    break
+    ;;
        [0-9]|[0-9][0-9]|[0-9][0-9][0-9]|\#|\*)
-	 mmcli -m $getidex --3gpp-ussd-respond="$query" | func_struct_regex
-	 ;;
+    mmcli -m $getidex --3gpp-ussd-respond="$query" | func_struct_regex
+    ;;
        *)
-	 printf 'invalid query\n'
-	 ;;
+    printf 'invalid query\n'
+    ;;
        esac
    done
    printf '\n'
