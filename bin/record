@@ -29,7 +29,7 @@ check_req() {
 }
 
 parse_checks_args() {
-   local BASE_DIR='' OUT_DIR=''
+   local BASE_DIR='' OUT_DIR='' ERROR=''
 
    is_digit() {
       expr "$2" : '[0-9]\+$' >/dev/null || {
@@ -69,7 +69,12 @@ parse_checks_args() {
       usage
    fi
 
-   OUT_DIR=$(printf '%s\n' "$OUT_FILE" | sed -e 's#^\(.\+\)/\?[^/]\+/\?$#\1#')
+   OUT_DIR=$(printf '%s\n' "$OUT_FILE" | sed -e 's#^\(.\+\)/[^/]\+/\?$#\1#')
+   ERROR=$(mkdir -p "$OUT_DIR" 2>&1)
+   if [ "$ERROR" ] ; then
+      printf '%s: ERROR: %s\n' "$0" "$ERROR"
+      exit 1
+   fi
    test -w "$OUT_DIR" || {
       printf "%s: ERROR: cannot write to \`%s'\n" "$0" "$OUT_DIR" >&2
       exit 1
