@@ -95,7 +95,7 @@ record() {
       '
    )"
 
-   echo "ffmpeg -hide_banner -f x11grab -framerate $FRAME_RATE $FF_OPTS -pix_fmt rgba -qp 0 -preset ultrafast -frames 100 -y '$OUT_FILE'"
+   eval "ffmpeg -hide_banner -f x11grab -framerate $FRAME_RATE $FF_OPTS -pix_fmt rgba -qp 0 -preset ultrafast -frames 100 -y '$OUT_FILE'"
 }
 
 main() {
