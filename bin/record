@@ -2,10 +2,10 @@
 
 # Record an X window with ffmpeg
 
-# globals
+# Globals
 OUT_FILE=''
-BORDER_PIXEL=''
-FRAME_RATE=''
+FRAME_RATE=25
+PIXEL_BORDER=0
 
 usage() {
    printf 'Usage: %s [-h] [-f FRAME_RATE] [-p NUM_PIXELS ] OUT_FILE\n' "$0" >&2
@@ -53,7 +53,7 @@ parse_checks_args() {
             ;;
          -*)
             printf "%s: ERROR: unknown options \`%s'\n" "$0" "$1" >&2
-            shift 2
+            exit 1
             ;;
           *)
             test $# -gt 1 && usage
@@ -61,6 +61,7 @@ parse_checks_args() {
             break
             ;;
       esac
+      shift 2
    done
 
    if [ -z "$OUT_FILE" ] ; then
@@ -76,23 +77,23 @@ parse_checks_args() {
 }
 
 record() {
-   local FF_OPTS=$(
-      xwininfo | awk -v BORDER_PIXEL=$BORDER_PIXEL '
+   local FF_OPTS="$(
+      xwininfo | awk -v PIXEL_BORDER="$PIXEL_BORDER" '
          /Height:/ { h = substr($0, 11) }
          /Width:/  { w = substr($0, 10) }
          /^[\t ]*A.* X:/ { x = substr($0, 27) }
          /^[\t ]*A.* Y:/ { y = substr($0, 27) }
          END {
-            if (BORDER_PIXEL) {
-               x -= BORDER_PIXEL
-               y -= BORDER_PIXEL
-               w += (2 * BORDER_PIXEL)
-               h += (2 * BORDER_PIXEL)
+            if (PIXEL_BORDER) {
+               x -= PIXEL_BORDER
+               y -= PIXEL_BORDER
+               w += (2 * PIXEL_BORDER)
+               h += (2 * PIXEL_BORDER)
             }
             print "-video_size " w "x" h " -i :0.0+" x "," y
          }
       '
-   )
+   )"
 
    echo "ffmpeg -hide_banner -f x11grab -framerate $FRAME_RATE $FF_OPTS -pix_fmt rgba -qp 0 -preset ultrafast -frames 100 -y '$OUT_FILE'"
 }
