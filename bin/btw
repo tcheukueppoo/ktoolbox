@@ -111,7 +111,7 @@ get_ip_address() {
    fi
 }
 
-submit_data_to_server() {
+submit_cmd_to_server() {
    # send CMD
    printf '%s\n' "$E_CMD" | nc "$IF_IP" $PORT
 
@@ -120,7 +120,6 @@ submit_data_to_server() {
       exit 1
    fi
 
-   nc "$IF_IP" $PORT
 }
 
 command_executor_server() {
@@ -146,7 +145,12 @@ main() {
    if [ -n "$SERVER_MODE" ] ; then
       command_executor_server
    else
-      submit_data_to_server
+      local CMD=
+
+      submit_cmd_to_server
+      # Wait for nc to run for the second time of the server
+      sleep 0.1
+      while read BUF; do printf '%s\n' "$BUF"; done | nc "$IF_IP" $PORT
    fi
 }
 
