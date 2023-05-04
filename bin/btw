@@ -97,7 +97,7 @@ get_ip_address() {
          }
          /inet [1-9][0-9]+(\.[1-9][0-9]+)+/ {
             if ( found_ip ) {
-               sub(" \..+/.+$", ".1", $2)
+               sub("\.[0-9]+/[0-9]+$", ".1", $2)
                print $2
                exit(0)
             }
@@ -112,7 +112,7 @@ get_ip_address() {
 }
 
 send_command_to_server() {
-   printf '%s\n' "$E_CMD" | nc "$IF_IP" $PORT
+   echo "printf '%s\n' "$E_CMD" | nc "$IF_IP" $PORT"
 
    if [ $? -ne 0 ] ; then
       printf '%s: ERROR: could establish connection to server\n' "$0" >&2
@@ -130,17 +130,18 @@ command_executor_server() {
    touch $BUF_FILE
    mkfifo $FIFO_CMD
 
-   tail -f $BUF_FILE | nc -lk "$IF_IP" $PORT | {
+   tail -f $BUF_FILE | nc -k -l "$IF_IP" $PORT | {
       while read BUF ; do
          if [ -z "$SEND_CMD" ] ; then
-            printf "Executing '%s'\n" "$BUF"
+            printf "Executing '%s'\n" "$BUF" >&2
             printf '%s\n' "$BUF" >"$FIFO_CMD" &
             SEND_CMD=1
+            continue
          fi
 
-         printf '%s\n' "$BUF"
+         printf '%s\n' "$BUF" >&2
       done
-   } | sh -c "$(cat "$FIFO_CMD")" 2>&1 >$BUF_FILE
+   } | sh -c "$(cat "$FIFO_CMD")" >>$BUF_FILE
 
 }
 
