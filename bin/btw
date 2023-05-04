@@ -1,0 +1,53 @@
+#!/bin/sh
+
+# Pipe command output between your docker container and docker host
+#
+#      # in docker container
+#      cmd1 | cmd2 ... | con -e 'cmd' | cmd3
+#
+#      Where 'cmd' is executed in your docker host
+
+IF_IP=
+IF_INDEX=1
+
+get_ip_address() {
+   local IN_DOCKER=1 
+
+   ip addr show | grep -qE 'docker[0-9]+' && IN_DOCKER=0
+   IF_IP=$(
+      ip addr show | awk -v in_docker=$IN_DOCKER -v if_index=$IF_INDEX '
+         BEGIN {
+            found_ip = 0
+            index_c = 0
+         }
+         function add_index() {
+            index_c += 1 
+            if ( index_c == if_index )
+               found_ip = 1
+         }
+         /[1-9]+: docker[0-9]+:/ {
+            if ( !in_docker )
+               add_index()
+         }
+         /[1-9]+: eth[0-9]@if[0-9]+:/ {
+            if ( in_docker )
+               add_index()
+         }
+         /inet [1-9][0-9]+(\.[1-9][0-9]+)+/ {
+            if ( found_ip ) {
+               sub("/.+$", "", $2)
+               print $2
+               exit(0)
+            }
+         }
+      '
+   )
+
+   if [ -z "$IF_IP" ] ; then
+      printf "%s: ERROR: failed to get brigde addr with index '%s'\n" "$0" "$IF_INDEX" >&2
+      exit 1
+   fi
+}
+
+get_ip_address
+echo $IF_IP
