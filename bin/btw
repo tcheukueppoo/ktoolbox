@@ -21,18 +21,28 @@ IF_INDEX=1
 # in server mode or not?
 SERVER_MODE=
 
+
 usage() {
-   printf 'Usage: %s [-h] [-s] [-e CMD] [-i N]\n' "$0" >&2
+   printf 'Usage: %s [-h] [-s] [-p PORT] [-e CMD] [-i N]\n' "$0" >&2
    printf '\t-h: Display this help message and exit.\n' >&2
-   printf '\t-s: Switch in server mode, listen to clients for commands.\n' >&2
+   printf '\t-s: Switch to server mode, listen to clients for commands.\n' >&2
    printf '\t-e: Send command "CMD" to server for execution and pour out its output.\n' >&2
+   printf '\t-p: Port to listen(Server)/establish(Client) connection.\n' >&2
    printf '\t-i: Defaults to the first brigde. Establish a connection to the Nth Docker brigde\n' >&2
    printf '\t    to listen for commands(in server mode) or send commands(in client mode). \n' >&2
    exit 1
 }
 
+is_digit() {
+   if ! expr "$1" : '[0-9]\+$' >/dev/null ; then
+      printf "%s: ERROR: argument to \`%s' must be an integer" "$0" "$2" >&2
+      exit 1
+   fi
+}
+
 parse_check_args() {
-   while getopts se:i:h OPTS ; do
+
+   while getopts se:i:p:h OPTS ; do
       case "$OPTS" in
          h | \?)
             usage
@@ -43,16 +53,18 @@ parse_check_args() {
          e)
             E_CMD=$OPTARG
             ;;
-         d)
+         p)
+            is_digit "$OPTARG" -p
+            PORT=$OPTARG
+            ;;
+         i)
+            is_digit "$OPTARG" -i
             IF_INDEX=$OPTARG
-            if ! expr "$IF_INDEX" : '[0-9]\+$' >/dev/null ; then
-               printf "%s: ERROR: argument to \`-d' must be an integer" "$0" >&2
-               exit 1
-            fi
             ;;
       esac
 
       IF_INDEX=${IF_INDEX:-1}
+      PORT=${PORT:-1234}
       if [ -z "$SERVER_MODE" ] && [ -z "$E_CMD" ] ; then
          printf '%s: ERROR: your are not in server mode\n' "$0" >&2
          printf "%s: ERROR: use \`-e' option to send a command\n" "$0" >&2
@@ -101,7 +113,12 @@ get_ip_address() {
 }
 
 send_command_to_server() {
-   printf '%s\n' "$E_CMD" | nc $IF_IP
+   printf '%s\n' "$E_CMD" | nc $IF_IP $PORT
+
+   if [ $? -ne 0 ] ; then
+      printf '%s: ERROR: could establish connection to server\n' "$0" >&2
+      exit 1
+   fi
 }
 
 command_executor_server() {
@@ -113,7 +130,7 @@ command_executor_server() {
 
    mkfifo "$FIFO_BUF" "$FIFO_CMD"
 
-   cat "$FIFO_BUF" | nc -l $IF_IP | {
+   cat "$FIFO_BUF" | nc -l $IF_IP $PORT | {
       while read BUF ; do
          if [ -z "$SEND_CMD" ] ; then
             printf "Executing '%s'\n" "$BUF"
@@ -129,6 +146,7 @@ command_executor_server() {
 
 main() {
    parse_check_args "$@"
+   get_ip_address
    if [ "$SERVER_MODE" ] ; then
       command_executor_server
    fi
