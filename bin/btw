@@ -1,14 +1,62 @@
 #!/bin/sh
 
-# Pipe command output between your docker container and docker host
+# pipe commands output between your docker container and docker host
 #
-#      # in docker container
+#      # in docker container run
 #      cmd1 | cmd2 ... | con -e 'cmd' | cmd3
 #
 #      Where 'cmd' is executed in your docker host
 
+# IP addr of the docker interface
 IF_IP=
+
+# command btw pipes
+E_CMD=
+
+# brigde index
 IF_INDEX=1
+
+# in server mode or not?
+SERVER_MODE=
+
+usage() {
+   printf 'Usage: %s [-h] [-s] [-e CMD] [-i N]\n' "$0" >&2
+   printf '\t-h: Display this help message and exit.\n' >&2
+   printf '\t-s: Switch in server mode, listen to commands.\n' >&2
+   printf '\t-e: Send command "CMD" to server for executing and pour out its output.\n' >&2
+   printf '\t-i: Establish a connection to the Nth Docker brigde to listen for commands(in server mode) or send commands(in client mode).\n' >&2
+   exit 1
+}
+
+parse_check_args() {
+   while getopts se:i:h OPTS ; do
+      case "$OPTS" in
+         h | \?)
+            usage
+            ;;
+         s)
+            SERVER_MODE=1
+            ;;
+         e)
+            E_CMD=$OPTARG
+            ;;
+         d)
+            IF_INDEX=$OPTARG
+            if ! expr "$IF_INDEX" : '[0-9]\+$' >/dev/null ; then
+               printf "%s: ERROR: argument to \`-d' must be an integer" "$0" >&2
+               exit 1
+            fi
+            ;;
+      esac
+
+      IF_INDEX=${IF_INDEX:-1}
+      if [ -z "$SERVER_MODE" ] && [ -z "$E_CMD" ] then
+         printf '%s: ERROR: your are not in server mode\n' "$0" >&2
+         printf "%s: ERROR: use \`-e' to send command option\n" "$0" >&2
+         usage
+      fi
+   done
+}
 
 get_ip_address() {
    local IN_DOCKER=1 
@@ -49,5 +97,30 @@ get_ip_address() {
    fi
 }
 
-get_ip_address
-echo $IF_IP
+send_command_to_server() {
+   printf '%s\n' "$E_CMD" | nc $IF_IP
+}
+
+command_executor_server() {
+   local CMD=
+   local FIFO_FILE=$(mktemp -u /tmp/XXXXXX)
+
+   printf 'Starting the command executor server\n'
+   printf 'Listening to on %s:%s\n' "$IF_IP" "$PORT"
+
+   mkfifo "$FIFO_FILE"
+   cat "$FIFO_FILE" | nc -l $IF_IP | while read COMMAND ; do
+      printf "Executing '%s'\n" "$CMD"
+      sh -c "$CMD" 2>&1 >"$FIFO_FILE"
+   done
+}
+
+main() {
+   parse_check_args "$@"
+   if [ "$SERVER_MODE" ] ; then
+      command_executor_server
+   fi
+   send_command_to_server
+}
+
+main "$@"
