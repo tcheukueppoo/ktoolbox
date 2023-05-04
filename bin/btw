@@ -111,13 +111,16 @@ get_ip_address() {
    fi
 }
 
-send_command_to_server() {
+submit_data_to_server() {
+   # send CMD
    printf '%s\n' "$E_CMD" | nc "$IF_IP" $PORT
 
    if [ $? -ne 0 ] ; then
       printf '%s: ERROR: could establish connection to server\n' "$0" >&2
       exit 1
    fi
+
+   nc "$IF_IP" $PORT
 }
 
 command_executor_server() {
@@ -143,7 +146,7 @@ main() {
    if [ -n "$SERVER_MODE" ] ; then
       command_executor_server
    else
-      send_command_to_server
+      submit_data_to_server
    fi
 }
 
