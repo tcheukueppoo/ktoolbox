@@ -1,66 +1,70 @@
-#!/usr/bin/env sh
+#!/usr/bin/env bash
 #
 # script to create a ussd(Unstructured supplementary Service Data)
 # session through a 3GPP network
 
-func_get_modem() {
+get_modem() {
    local getidex=`mmcli -L | cut -d/ -f6 | cut -d ' ' -f1`
 
-   printf '%s' "$getidex" | grep -qv '[0-9]\+'
+   printf '%s\n' "$getidex" | grep -qv '[0-9]\+'
    test $? -eq 1 && return 1
    printf '%s' "$getidex"
 }
 
 # retrieve the relevant information from the
 # output of mmcli -m $getidex --3gpp-ussd-initiate="$query" 
-func_struct_regex() {
+struct_regex() {
    perl -e 'my $line = undef; while (<<>>) { $line .= $_; } $_ = $line;if (/^.*:\\s+'"'(.*)'"'$/s) {print $1, \"\\n\";}'
 }
 
-func_myprompt() {
+myprompt() {
    local query
 
    # don't try to end a ussd session that doesn't
-   # exist, so func_check_status checks if the
+   # exist, so check_status checks if the
    # session exist first before trying to end it
-   func_check_status() {
+   check_status() {
       local status
 
       status=`mmcli -m $getidex --3gpp-ussd-status | fgrep status: | awk -F[':'] '{print $2}'`
       status="${status## }"
       test "$status" == idle && return 1
    }
-   # end the opened session before exiting the program
-   func_end_session () { mmcli -m $getidex --3gpp-ussd-cancel; }
-   trap 'func_check_status && func_end_session' SIGINT SIGQUIT
 
-   while read -p "${PS2:-> }" query; do
-       if test -z "$query"; then
-    continue
-       elif echo $query | grep -q '^\*[\*0-9]*#$'; then
-    func_check_status && mmcli -m $getidex --3gpp-ussd-cancel &>/dev/null
-    mmcli -m $getidex --3gpp-ussd-initiate="$query" | func_struct_regex
-    continue
+   # end the opened session before exiting the program
+   end_session() {
+      mmcli -m $getidex --3gpp-ussd-cancel
+   }
+
+   trap 'check_status && func_end_session' SIGINT SIGQUIT
+
+   while read -p "${PS2:-> }" query ; do
+       if test -z "$query" ; then
+         continue
+       elif printf '%s\n' $query | grep -q '^\*[\*0-9]*#$' ; then
+          check_status && mmcli -m $getidex --3gpp-ussd-cancel &>/dev/null
+          mmcli -m $getidex --3gpp-ussd-initiate="$query" | struct_regex
+          continue
        fi
        case "$query" in
        e|q|exit|quit)
-    func_check_status && mmcli -m $getidex --3gpp-ussd-cancel
-    break
-    ;;
+          check_status && mmcli -m $getidex --3gpp-ussd-cancel
+          break
+          ;;
        [0-9]|[0-9][0-9]|[0-9][0-9][0-9]|\#|\*)
-    mmcli -m $getidex --3gpp-ussd-respond="$query" | func_struct_regex
-    ;;
+          mmcli -m $getidex --3gpp-ussd-respond="$query" | struct_regex
+          ;;
        *)
-    printf 'invalid query\n'
-    ;;
+          printf 'invalid query\n'
+          ;;
        esac
    done
    printf '\n'
 }
 
-if ! command -v mmcli &>/dev/null; then
+if ! command -v mmcli &>/dev/null ; then
   printf 'mmcli not present, install ModemManager'
   exit 1
 fi
 
-func_myprompt ``
+myprompt ``
