@@ -134,7 +134,7 @@ command_executor_server() {
       CMD=$(nc -l "$IF_IP" $PORT)
 
       printf "Executing '%s'\n" "$CMD"
-      cat $BUF_FILE | eval "$CMD" | nc -l "$IF_IP" $PORT >$BUF_FILE
+      cat $BUF_FILE | sh -c "$CMD" | nc -l "$IF_IP" $PORT >$BUF_FILE
    done
 }
 
