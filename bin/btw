@@ -112,7 +112,7 @@ get_ip_address() {
 }
 
 send_command_to_server() {
-   echo "printf '%s\n' "$E_CMD" | nc "$IF_IP" $PORT"
+   printf '%s\n' "$E_CMD" | nc "$IF_IP" $PORT
 
    if [ $? -ne 0 ] ; then
       printf '%s: ERROR: could establish connection to server\n' "$0" >&2
@@ -121,28 +121,19 @@ send_command_to_server() {
 }
 
 command_executor_server() {
-   local CMD= SEND_CMD=
+   local CMD=
    local BUF_FILE=$(mktemp -u /tmp/btw-buf-XXXXXX) FIFO_CMD=$(mktemp -u /tmp/btw-cmd-XXXXXX)
 
    printf 'Starting the command executor server\n'
    printf 'Listening on %s:%s\n' "$IF_IP" $PORT
 
    touch $BUF_FILE
-   mkfifo $FIFO_CMD
+   while [ 1 ] ; do
+      CMD=$(nc -l "$IF_IP" $PORT)
 
-   tail -f $BUF_FILE | nc -k -l "$IF_IP" $PORT | {
-      while read BUF ; do
-         if [ -z "$SEND_CMD" ] ; then
-            printf "Executing '%s'\n" "$BUF" >&2
-            printf '%s\n' "$BUF" >"$FIFO_CMD" &
-            SEND_CMD=1
-            continue
-         fi
-
-         printf '%s\n' "$BUF" >&2
-      done
-   } | sh -c "$(cat "$FIFO_CMD")" >>$BUF_FILE
-
+      printf "Executing '%s'\n" "$CMD"
+      tail -f $BUF_FILE | nc -l "$IF_IP" $PORT | sh -c "$CMD" >>$BUF_FILE
+   done
 }
 
 main() {
