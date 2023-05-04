@@ -1,22 +1,27 @@
 #!/bin/sh
 
-as_echo="printf %s\\n"
-direc=`{ [ -d "$HOME/Downloads" ] && $as_echo "Downloads"
-         [ -d "$HOME/Videos" ] && $as_echo "Videos"
-         [ -d /mnt2/media ] && ls -F /mnt2/media | sed -n 's#\(.*\)/$#\1#p'} | dmenu -c -p "Where" -z 600 -l 10 -h 20 -i`
+DIRECTORY=$(
+   {
+      test -d "$HOME/Downloads" && printf 'Downloads\n'
+      test -d "$HOME/Videos" && printf 'Videos\n'
+      test -d /mnt2/media && ls -F /mnt2/media | sed -n 's#\(.*\)/$#\1#p'
+   } | dmenu -c -p "Where" -z 600 -l 10 -h 20 -i
+)
 
-if [ -n "$direc" ]; then
-   if [ "$direc" == Downloads ] || [ "$direc" == Videos ]; then
-      direc="$HOME/$direc"
-   elif [ -d "/mnt2/media/$direc" ]; then
-      direc="/mnt2/media/$direc"
+if test -n "$DIRECTORY" ; then
+   if test "$DIRECTORY" == 'Downloads' || test "$DIRECTORY" == Videos
+   then
+      DIRECTORY="$HOME/$DIRECTORY"
+   elif [ -d "/mnt2/media/$DIRECTORY" ] ; then
+      DIRECTORY="/mnt2/media/$DIRECTORY"
    fi
 fi
 
-if [ -d "$direc" ]; then
-   cache="${XDG_HOME_CACHE:-"$HOME/.cache"}"
-   m_cache="${cache}/msearch"
-   media=$(find $direc -type f \( -iname "*.avi" -o -iname "*.mp4" -o -iname "*.mkv" \) | tee "$m_cache" | while read base; do echo `basename "$base"`; done | dmenu -c -p "Search" -z 600 -l 20 -h 20 -i)
-   media=$(cat "$m_cache" | grep "/$media$" | head -n1)
-   [ -n "$media" ] && ffplay "$media"
+if test -d "$DIRECTORY" ; then
+   CACHE="${XDG_HOME_CACHE:-"$HOME/.cache"}"
+   M_CACHE="${CACHE}/msearch"
+   MEDIA_FILE=$(find $DIRECTORY -type f \( -iname "*.avi" -o -iname "*.mp4" -o -iname "*.mkv" \) | tee "$M_CACHE" | while read base; do echo `basename "$base"`; done | dmenu -c -p "Search" -z 600 -l 20 -h 20 -i)
+   MEDIA_FILE=$(cat "$M_CACHE" | grep "/$MEDIA_FILE$" | head -n1)
+
+   test -n "$MEDIA_FILE" && ffplay "$MEDIA_FILE"
 fi
