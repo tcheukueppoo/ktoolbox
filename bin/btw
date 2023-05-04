@@ -129,12 +129,12 @@ command_executor_server() {
    printf 'Starting the command executor server\n'
    printf 'Listening on %s:%s\n' "$IF_IP" $PORT
 
-   touch $BUF_FILE
+   mkfifo $BUF_FILE
    while [ 1 ] ; do
       CMD=$(nc -l "$IF_IP" $PORT)
 
       printf "Executing '%s'\n" "$CMD"
-      tail -f $BUF_FILE | eval "$CMD" | nc -l "$IF_IP" $PORT >>$BUF_FILE
+      cat $BUF_FILE | eval "$CMD" | nc -l "$IF_IP" $PORT >$BUF_FILE
    done
 }
 
