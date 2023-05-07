@@ -1,5 +1,7 @@
 #!/bin/sh
 
+set -u
+
 # to save
 DEST_DIR=
 
@@ -12,11 +14,11 @@ NTH_COMMIT=
 OLD_WD=
 
 usage() {
-   printf '%s: Get files from a specify commit ID.\n\n' "$0" >&2
+   printf '%s: Get files from a specific commit ID.\n\n' "$0" >&2
    printf 'Usage: %s [-h] [-g PROJ_DIR] [-n NTH_COMMIT] [-d DEST_DIR]\n' "$0" >&2
    printf '\t-h: Display this help message and exit.\n' >&2
    printf '\t-g: Specify the path to the directory of the cloned repo. Defaults to $PWD.\n' >&2
-   printf '\t-d: Specify the path to where to save extracted files.\n' >&2
+   printf '\t-d: Specify the path to where to save the extracted files.\n' >&2
    printf '\t-n: Specify the NTH_COMMIT commit from where files are extracted.\n' >&2
    exit 1
 }
@@ -33,20 +35,20 @@ check_dependencies() {
 }
 
 get_opts() {
-   while getopts d:g:n: OPTS ; do
+   while getopts :hd:g:n: OPTS ; do
       case "$OPTS" in
          h)
             usage ;;
          d)
-            DEST_DIR=$OPTARGS ;;
+            DEST_DIR=$OPTARG ;;
          g)
-            PROJ_DIR=$OPTARGS ;;
+            PROJ_DIR=$OPTARG ;;
          n)
-            expr "$OPTARGS" : '[0-9]\+$' >/dev/null || {
+            expr "$OPTARG" : '[0-9]\+$' >/dev/null || {
                printf "%s: ERROR: \`-n' options takes a +ve integer as argument\n" "$0" >&2
                usage
             }
-            NTH_COMMIT=$OPTARGS ;;
+            NTH_COMMIT=$OPTARG ;;
          \?)
             usage ;;
       esac
@@ -54,24 +56,25 @@ get_opts() {
 }
 
 check_global_vars() {
+   NTH_COMMIT=${NTH_COMMIT:-1}
+
+   PROJ_DIR=`readlink -f "${PROJ_DIR:-.}"`
    if [ ! -d "$PROJ_DIR" ] ; then
       printf "%s: ERROR: \`%s' isn't a directory\n" "$0" "$PROJ_DIR" >&2
       exit 1
    fi
-
    if [ ! -x "$PROJ_DIR" ] ; then
       printf "%s: ERROR: cannot enter \`%s'\n" "$0" "$PROJ_DIR" >&2
       exit 1
    fi
 
-   if [ ! -w "$DEST_DIR" ] ; then
-      printf "%s: ERROR: cannot write in \`%s'\n" "$0" "$DEST_DIR" >&2
-      exit 1
+   if [ -n "$DEST_DIR" ] ; then
+      DEST_DIR=`readlink -f "$DEST_DIR"`
+      if [ ! -w "$DEST_DIR" ] ; then
+         printf "%s: ERROR: cannot write in \`%s'\n" "$0" "$DEST_DIR" >&2
+         exit 1
+      fi
    fi
-
-   NTH_COMMIT=${NTH_COMMIT:-1}
-   PROJ_DIR=`readlink -f "$PROJ_DIR"`
-   DEST_DIR=`readlink -f "$DEST_DIR"`
 }
 
 get_files_from_commit_id() {
@@ -96,23 +99,24 @@ get_files_from_commit_id() {
       exit 1
    fi
 
-   COMMIT_ID=`printf '%s\n' "$COMMITS" | tac | sed -n "${NTH_COMMIT}d"`
+   COMMIT_ID=`printf '%s\n' "$COMMITS" | tac | sed -n "${NTH_COMMIT}p"`
    if [ -z "$DEST_DIR" ] ; then
-      if [ -w "$PROJ_DIR" ] ; then
-         DEST_DIR="$COMMIT_ID-$NTH_COMMIT"
+      if test -w . ; then
+         DEST_DIR="${WD%%/}/$COMMIT_ID-$NTH_COMMIT"
          mkdir -p "$DEST_DIR"
       else
-         printf "%s: ERROR: cannot write into \`%s'\n" "$0" "$PROJ_DIR" >&2
+         printf "%s: ERROR: cannot write into \`%s'\n" "$0" "$WD" >&2
          exit 1
       fi
    fi
 
-   ZIP_FILE=`mktemp -u /tmp/archive-XXXXXX.zip`
-   git archive $COMMIT_ID -o $ZIP_FILE
-   unzip -q $ZIP_FILE -d "$DEST_DIR"
+   ZIP_FILE=`mktemp -u /tmp/archive-XXXXXX`
+   
+   git archive $COMMIT_ID --format=zip --output $ZIP_FILE
+   unzip -q -d "$DEST_DIR" $ZIP_FILE
    rm -f $ZIP_FILE
 
-   test -n "$OLD_WD" && cd "$OLD_WD"
+   [ "$OLD_WD" ] && cd "$OLD_WD"
 }
 
 track() {

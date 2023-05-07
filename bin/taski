@@ -4,11 +4,14 @@
 set -- zdocs mdocs msearch
 
 printf '%s\n' "$@" | dmenu -p 'Run ' -h 23 | {
-   while read apps; do
+   while read apps ; do
       case $apps in
-	 zdocs) printf '%s\n' "zdocs -z" ;;
-	 mdocs) printf '%s\n' "zdocs -m" ;;
-	 *)     printf '%s' "$apps"      ;;
+         zdocs)
+            printf '%s\n' "zdocs -z" ;;
+         mdocs)
+            printf '%s\n' "zdocs -m" ;;
+         *)
+            printf '%s\n' "$apps" ;;
       esac
    done
 } | sh
