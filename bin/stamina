@@ -4,28 +4,26 @@
 # a USB modem(ex: /dev/ttyUSB*, ...). its dependencies are:
 #   usb_modeswitch, ModemManager, NetworkManager, systemd
 #
-#          From: https://codeberg.org@tcheukueppo/scripts.git
-#          Author: kueppo
+#          From: https://codeberg.org@tcheukueppo/ktoolbox.git
+#          Author: Kueppo Tcheukam
 
 if test "$(uname)" != Linux ; then
-  printf "%s: should be run on a linux system\n" "$0" >&2
+  printf '%s: ERROR: this is a linux script\n' "$0" >&2
   exit 1
 fi
 
 if test "$(id -u)" -ne 0 ; then
-  printf "%s: root permission needed\n" "$0" >&2
+  printf '%s: ERROR: root permission needed\n' "$0" >&2
   exit 1
 fi
-
-null='>/dev/null 2>&1'
 
 usage() {
 cat<<EOF >&2
 Usage: stamina [OPTIONS]... APN
 establishes a connection to a usb modem, modems
 of the type /dev/ttyUSB*, /dev/ttyS*, etc. stamina
-takes as mandatory argument the access point name
-which depends on your service provider.
+takes as mandatory argument which is the APN.
+APN depends on your service provider.
   -k, --kill  delete the network manager connection
               called "stamina" which was created
               when the usb modem was first plug-in.
@@ -33,57 +31,28 @@ EOF
 }
 
 check() {
-   local toins=''
+   local cmd=''
 
    # to switch to from a storage device to a modem
    # send bulk message to the device with usb_modeswitch
    printf 'warn: mode switch the usb device(usb_modeswitch)\n'
-   printf 'checking dependencies ...\n'
-   command -v usb_modeswitch >/dev/null || toins="usb_modeswitch"
-   command -v ModemManager >/dev/null || toins="ModemManger${toins:+, }${toins}"
-   command -v NetworkManager >/dev/null || toins="NetworkManager${toins:+, }${toins}"
-   if test -n "$toins" ; then
-      printf failed
-      if printf '%s\n' "$toins" | fgrep -q ',' ; then
-         printf '%s and %s are needed\n' "${toins%,*}" "${toins##* }"
-      else
-         printf '%s is needed\n' "${toins}"
-      fi
-      return 1
-   fi
-   printf ok
-
-   return 0
+   printf 'checking dependencies ...'
+   for cmd in systemd usb_modeswitch ModemManger NetworkManager ; do
+      command -v "$cmd" >/dev/null || {
+         printf "\n%s: ERROR: \`%s' not found\n" "$0" "$cmd"
+         exit 1
+      }
+   done
+   printf 'ok'
 }
 
 servck() {
-   local excode=0
+   local service=
 
-   printf 'enabling ModemManager service ...'
-   if ! eval systemctl enable ModemManager ${null} ; then
-      printf failed
-      excode=$(($excode + 1))
-   fi
-   printf ok
-   printf 'starting ModemManger service ...'
-   if ! eval systemctl start ModemManager ${null} ; then
-      printf failed
-      excode=$(($excode + 1))
-   fi
-   printf ok
-   printf 'enabling NetworkManager service ...'
-   if ! eval systemctl enable NetworkManager ${null} ; then
-      printf failed
-      excode=$(($excode + 1))
-   fi
-   printf ok
-   printf 'starting NetworkManager service ...'
-   if ! eval systemctl restart NetworkManager ${null} ; then
-      printf failed
-      excode=$(($excode + 1))
-   fi
-   printf ok
-   test $excode -ne 0 && return 1
+   for service in ModemManger NetworkManager ; do
+      printf 'starting "%s" service ...' $service
+      systemctl start ModemManager >/dev/null 2>&1 && printf 'ok\n' || { printf 'failed\n'; exit 1; }
+   done
 }
 
 pppcon() {
@@ -99,8 +68,8 @@ pppcon() {
    # get modem index
    index="$(mmcli -L | cut -d/ -f6 | cut -d ' ' -f1)"
    if ! printf '%d\n' "$index" | grep -q '[0-9]\{1,\}' ; then
-      printf 'could not get modem index\n' >&2
-      return 1
+      printf '%s: ERROR: could not get modem index\n' "$0" >&2
+      exit 1
    fi
    # create a persistent connection with networkmanager
    if nmcli connection show 2>/dev/null | grep -q '^Stamina ' ; then
@@ -113,7 +82,7 @@ pppcon() {
       }
       wmsg >&2
       nmcli radio wwan on
-      return 1
+      exit 1
    fi
 
    pport="$(mmcli -m $index | fgrep 'primary port' | cut -d: -f2)"
@@ -123,13 +92,12 @@ pppcon() {
       nmcli connection add type gsm ifname "$pport" con-name "Stamina" apn "$1"
       test $? -eq 0 && printf 'usb modem connection succeeded\n'
    fi
-   return 0
 }
 
 kilcon() {
    local gguid
    if ! nmcli connection show | grep -q '^Stamina ' ; then
-      printf 'no connection found\n' >&2
+      printf '%s: ERROR: no connection found\n' "$0" >&2
       return 1
    fi
    printf 'attempting to delete the connection ...'
@@ -155,6 +123,4 @@ stamina() {
    return 0
 }
 
-##
-## stamina
 stamina "$@"
