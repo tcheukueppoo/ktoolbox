@@ -1,0 +1,92 @@
+#!/bin/sh
+
+DEST_DIR=
+PROJ_DIR=
+NTH_COMMIT=
+
+usage() {
+   printf 'Usage: %s [-h] [-g PROJ_DIR] [-n NTH_COMMIT] [-d DEST_DIR]\n' "$0" >&2
+   printf '\t-h: Display this help message and exit.\n' >&2
+   printf '\t-g: Specify the path to the directory of the cloned repo, defaults to the current directory.\n' >&2
+   printf '\t-d: Specify the path.\n' >&2
+   printf '\t-n: Specify the NTH_COMMIT commit from where files are going to be extracted.\n' >&2
+   exit 1
+}
+
+get_args() {
+   while getopts d:g:n: OPTS ; do
+      case "$OPTS" in
+         h)
+            usage
+            ;;
+         d)
+            DEST_DIR=$OPTARGS
+            ;;
+         g)
+            PROJ_DIR=$OPTARGS
+            ;;
+         n)
+            expr "$OPTARGS" : '[0-9]\+' >/dev/null || {
+               printf "%s: ERROR: \`-n' options takes a +ve integer as argument\n" "$0" >&2
+               usage
+            }
+            NTH_COMMIT=$OPTARGS
+            ;;
+         \?)
+            usage
+            ;;
+      esac
+   done
+}
+
+check_global_vars() {
+   NTH_COMMIT=${NTH_COMMIT:-1}
+
+   if [ ! -d "$PROJ_DIR" ] ; then
+      printf "%s: ERROR: \`%s' isn't a directory\n" "$0" "$PROJ_DIR" >&2
+      exit 1
+   fi
+
+   if [ ! -x "$PROJ_DIR" ] ; then
+      printf "%s: ERROR: cannot enter \`%s'\n" "$0" "$PROJ_DIR" >&2
+      exit 1
+   fi
+
+   if [ -z "$DEST_DIR" ] ; then
+      if [ -w "$PROJ_DIR" ] ; then
+         DEST_DIR="$COMMIT_ID-$NTH_COMMIT"
+         mkdir -p "$DEST_DIR"
+      fi
+      printf "%s: ERROR: cannot write into \`%s'\n" "$0" "$PROJ_DIR" >&2
+      exit 1
+   elif [ ! -w "$DEST_DIR" ] ; then
+      printf "%s: ERROR: cannot write into \`%s'\n" "$0" "$DEST_DIR" >&2
+      exit 1
+   fi
+}
+
+get_files_from_commit_id() {
+   local COMMITS= N_COMMITS= OLD_WD=
+
+   OLD_WD=${PWD:-"$(pwd)"}
+   cd -P "$PROJ_DIR" && git status >/dev/null 2>&1
+   if [ $? -ne 0 ] ; then
+      local W_DIR=${PWD:-"$(pwd)"}
+
+      printf "%s: ERROR: \`%s' isn't a git repo.\n" "$0" "$W_DIR" >&2
+      exit 1
+   fi
+
+   COMMITS=`git log | grep ^commit | awk '{print $2}'`
+   N_COMMITS=`printf '%s\n' "$COMMITS" | wc -l`
+   if test $N_COMMITS -lt $NTH_COMMIT ; then
+      printf '%s: ERROR: max number of commits: %d\n' "$0" "$N_COMMITS" >&2
+      exit 1
+   fi
+
+   ZIP_FILE=`mktemp -u /tmp/archive-XXXXXX.zip`
+   git archive `printf '%s\n' "$COMMITS" | tac | sed -n "${NTH_COMMIT}d"` -o $ZIP_FILE
+
+   unzip -q $ZIP_FILE -d "$DEST_DIR"
+   rm -f $ZIP_FILE
+}
