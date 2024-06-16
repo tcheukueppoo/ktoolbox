@@ -1,0 +1,130 @@
+#!/bin/sh
+
+num_cores=${num_cores:-2}
+ram=${ram:-2G}
+kernel=${kernel:-"$HOME/IMG/android/kernel"}
+initrd=${initrd:-"$HOME/IMG/android/initrd.img"}
+ramdisk=${ramdisk:-"$HOME/IMG/android/ramdisk.img"}
+system=${system:-"$HOME/IMG/android/system.img"}
+data=${data:-"$HOME/IMG/android/data.img"}
+display=${display:-gtk}
+serial=${serial:-stdio}
+vga=${vga:-virtio}
+
+kernel_cmd=$(cat <<END
+nomodeset xforceversa
+root=/dev/ram0
+androidboot.selinux=permissive
+console=ttyS0
+RAMDISK=vdb
+DATA=vdc
+END
+)
+
+arch=`uname -m`
+qemu="qemu-systemi-$arch"
+
+die () {
+   printf "$@" >&2
+   exit 1
+}
+
+qemu_android_check () {
+   num_re='\([1-9]\|[1-9][0-9]\)G$'
+
+   command -v "$qemu" >/dev/null           || die "Error: $qemu not found."
+   lsmod | grep -q ^kvm                    || die "Error: kvm kernel module not found."
+   expr "$num_core" : "$num_re" >/dev/null || die "Error: Invalid number of cores."
+}
+
+drive_system () {
+   args=$(cat <<END
+index=0
+if=virtio
+id=system
+file="$system"
+format=raw
+readonly=on
+END
+)
+   printf "$args" | tr '\n' ','
+}
+
+drive_ramdisk () {
+   args=$(cat <<END
+index=1
+if=virtio
+id=ramdisk
+file="$ramdisk"
+format=raw
+readonly=on
+END
+)
+   printf "$args" | tr '\n' ','
+}
+
+drive_data () {
+   args=$(cat <<END
+index=2
+if=virtio
+id=data
+file="$data"
+format=raw
+END
+)
+   printf "$args" | tr '\n' ','
+}
+
+user_netdev () {
+   printf 'user,id=knet,hostfwd=tcp::5000-:5000'
+}
+
+device_knet () {
+   printf 'virtio-net-pci,netdev=knet'
+}
+
+qemu_android () {
+   eval $qemu               \
+      -enable-kvm            \
+      -cpu host               \
+      -machine vmport=off      \
+      -m $ram                   \
+      -smp cores=$num_cores      \
+      -boot menu=on               \
+      -vga $vga                    \
+      -display $display             \
+      -serial $serial                \
+      -initrd "'$initrd'"             \
+      -kernel "'$kernel'"              \
+      -append "'$kernel_cmd'"           \
+      -drive  "$(drive_system)"          \
+      -drive  "$(drive_ramdisk)"          \
+      -drive  "$(drive_data)"              \
+      -netdev "$(user_netdev)"              \
+      -device "$(device_knet)"
+
+}
+
+#   -device qemu-xhci,id=xhci0 -device usb-tablet,bus=xhci0.0 -machine vmport=off \
+qemu-system-x86_64 \
+   -m 4096 \
+   -k fr \
+   -enable-kvm \
+   -cpu host \
+   -smp cores=2 \
+   -append "nomodeset xforceversa root=/dev/ram0 androidboot.selinux=permissive console=ttyS0 RAMDISK=vdb DATA=vdc" \
+   -kernel "/home/kueppo/Img/android/kernel" \
+   -initrd "/home/kueppo/Img/android/initrd.img" \
+   -boot menu=on \
+	-drive index=0,if=virtio,id=system,file=/home/kueppo/Img/android/system.sfs,format=raw,readonly=on \
+	-drive index=1,if=virtio,id=ramdisk,file=/home/kueppo/Img/android/ramdisk.img,format=raw,readonly=on \
+	-drive index=2,if=virtio,id=data,file=/home/kueppo/Img/data.img,format=raw \
+   -vga virtio \
+   -display gtk \
+   -serial mon:stdio \
+   -netdev user,id=anet0 -device virtio-net-pci,netdev=anet0
+   #-netdev tap,script=no,downscript=no,id=nd01,ifname=tap0  -device e1000,netdev=nd01
+   #-netdev bridge,br=br0,id=anet0 -device e1000,netdev=anet0
+   #-netdev user,id=anet0,hostfwd=tcp::8080-:8080 -device virtio-net-pci,netdev=anet0
+
+
