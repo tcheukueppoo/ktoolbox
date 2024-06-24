@@ -3,109 +3,113 @@
 # Record an X window with ffmpeg
 
 # Globals
-OUT_FILE=''
-FRAME_RATE=25
-PIXEL_BORDER=0
+out_file=
+frame_rate=25
+pixel_border=0
+out_dir=
 
-usage() {
-   printf 'Usage: %s [-h] [-f FRAME_RATE] [-p NUM_PIXELS ] OUT_FILE\n' "$0" >&2
-   printf '\t-h: display this help message and exit.\n' >&2
-   printf '\t-f: set video framerate.\n' >&2
-   printf '\t-p: set border pixel of the selected window.\n' >&2
-   printf '\n\tOUT_FILE: output file.\n' >&2
+usage () {
+cat <<END
+Usage: $0 [-h]
+          [-f FRAME_RATE] [-p NUM_PIXELS ] OUT_FILE
+   -h: display this help message and exit.
+   -f: set video framerate.
+   -p: set border pixel of the selected window.
 
+   OUT_FILE: output file.
+END
    exit 1
 }
 
-check_req() {
-   local TOOL=''
-
-   for TOOL in xwininfo ffmpeg ; do
-      command -v ffmpeg >/dev/null || {
-         printf "%s: ERROR: \`%s' not found\n" "$0" "$TOOL" >&2
-         exit 1
-      }
-   done
+die () {
+   printf '%s: %s.\n' "$0" "$*" >&2
+   exit 1
 }
 
-parse_checks_args() {
-   local BASE_DIR='' OUT_DIR='' ERROR=''
+requires () {
+   {
+      for cmd in "$@" ; do
+         command -v "$cmd" || die "$cmd: command not found"
+      done
+   } >/dev/null
+}
 
-   is_digit() {
-      expr "$2" : '[0-9]\+$' >/dev/null || {
-         printf "%s: ERROR: \`%s' must be a digit\n" "$0" "$1">&2
-         exit 1
-      }
-   }
+is_digit () {
+   expr "$2" : '[0-9]\+$' >/dev/null || die "'$1' must be a digit"
+}
+
+parse_args () {
 
    while test $# -gt 0 ; do
-      expr "$1" : '-h$' >/dev/null && usage
-      case "$1" in
+      case $1 in
+         -h)
+            usage
+            ;;
          -f)
             test $# -lt 2 && usage
             is_digit framerate "$2"
-            FRAME_RATE=$2
+            frame_rate=$2
             ;;
          -p)
             test $# -lt 2 && usage
-            is_digit "border pixel" "$2"
-            PIXEL_BORDER=$2
+            is_digit "border_pixel" "$2"
+            pixel_border=$2
             ;;
          -*)
-            printf "%s: ERROR: unknown options \`%s'\n" "$0" "$1" >&2
-            exit 1
+            die "Unknown option \`$1'"
             ;;
           *)
             test $# -gt 1 && usage
-            OUT_FILE=$1
-            break
+            out_file=$1
             ;;
       esac
       shift 2
    done
 
-   if [ -z "$OUT_FILE" ] ; then
-      printf "%s: ERROR: you must set output file\n" "$0" >&2
+   if test -z "$out_file" ; then
+      die "You must set an output file"
       usage
    fi
 
-   OUT_DIR=$(printf '%s\n' "$OUT_FILE" | sed -e 's#^\(.\+\)/[^/]\+/\?$#\1#')
-   ERROR=$(mkdir -p "$OUT_DIR" 2>&1)
-   if [ "$ERROR" ] ; then
-      printf '%s: ERROR: %s\n' "$0" "$ERROR"
-      exit 1
-   fi
-   test -w "$OUT_DIR" || {
-      printf "%s: ERROR: cannot write to \`%s'\n" "$0" "$OUT_DIR" >&2
-      exit 1
-   }
+   out_dir=${out_file%/*}
+
+   mkdir -p "$out_dir" || exit 1
+   test -w "$out_dir"  || die "cannot write to \`$out_dir'"
 }
 
-record() {
-   local FF_OPTS="$(
-      xwininfo | awk -v PIXEL_BORDER="$PIXEL_BORDER" '
+record () {
+   ff_opts=$(
+      xwininfo | awk -v pixel_border="$pixel_border" '
          /Height:/ { h = substr($0, 11) }
          /Width:/  { w = substr($0, 10) }
          /^[\t ]*A.* X:/ { x = substr($0, 27) }
          /^[\t ]*A.* Y:/ { y = substr($0, 27) }
          END {
-            if (PIXEL_BORDER) {
-               x -= PIXEL_BORDER
-               y -= PIXEL_BORDER
-               w += (2 * PIXEL_BORDER)
-               h += (2 * PIXEL_BORDER)
+            if (pixel_border) {
+               x -= pixel_border
+               y -= pixel_border
+               w += (2 * pixel_border)
+               h += (2 * pixel_border)
             }
             print "-video_size " w "x" h " -i :0.0+" x "," y
          }
       '
-   )"
+   )
 
-   eval "ffmpeg -hide_banner -f x11grab -framerate $FRAME_RATE $FF_OPTS -pix_fmt rgba -qp 0 -preset ultrafast -y '$OUT_FILE'"
+   eval ffmpeg                   \
+         -hide_banner             \
+         -f x11grab                \
+         -framerate $frame_rate     \
+         $ff_opts                    \
+         -pix_fmt rgba                \
+         -qp 0                         \
+         -preset ultrafast              \
+         -y "'$out_file'"
 }
 
-main() {
-   check_req
-   parse_checks_args "$@"
+main () {
+   requires xwininfo ffmpeg herbe
+   parse_args "$@"
    record
 }
 
