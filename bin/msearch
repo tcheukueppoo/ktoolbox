@@ -1,27 +1,37 @@
 #!/bin/sh
 
-DIRECTORY=$(
-   {
-      test -d "$HOME/Downloads" && printf 'Downloads\n'
-      test -d "$HOME/Videos" && printf 'Videos\n'
-      test -d /mnt2/media && ls -F /mnt2/media | sed -n 's#\(.*\)/$#\1#p'
-   } | dmenu -c -p "Where" -z 600 -l 10 -h 20 -i
-)
+die () {
+   printf "%s: %s." "$0" "$*" >&2
+   exit 1
+}
 
-if test -n "$DIRECTORY" ; then
-   if test "$DIRECTORY" == 'Downloads' || test "$DIRECTORY" == Videos
-   then
-      DIRECTORY="$HOME/$DIRECTORY"
-   elif [ -d "/mnt2/media/$DIRECTORY" ] ; then
-      DIRECTORY="/mnt2/media/$DIRECTORY"
+requires () {
+   for cmd in "$@" ; do
+      command -v $cmd >/dev/null || die "$cmd: command not found"
+   done
+}
+
+msearch () {
+   cache="${XDG_HOME_CACHE:-"$HOME/.cache"}"
+   mcache="${cache}/msearch"
+
+   sfile=
+   vfiles=
+   dmenu='dmenu -c -p "Select" -z 600 -l 10 -h 20 -i'
+
+   dirs=$(stest -dr -n "$mcache" "$@" | sed -e 's/^/"/;s/$/"/')
+
+   if test -n "$dirs" ; then
+      vfiles=$(eval find "$dirs" -type f -exec file --mime-type '"{}"' '\;' | sed -ne 's#^\(.\+\): video/.\+$#\1#p')
+
+      test -z "$vfiles" && return
+      sfile=$(printf '%s\n' "$vfiles" | tee -a "$mcache" | eval "$dmenu")
+   else
+      sfile=$(cat "$mcache" | eval "$dmenu")
    fi
-fi
 
-if test -d "$DIRECTORY" ; then
-   CACHE="${XDG_HOME_CACHE:-"$HOME/.cache"}"
-   M_CACHE="${CACHE}/msearch"
-   MEDIA_FILE=$(find $DIRECTORY -type f \( -iname "*.avi" -o -iname "*.mp4" -o -iname "*.mkv" \) | tee "$M_CACHE" | while read base; do echo `basename "$base"`; done | dmenu -c -p "Search" -z 600 -l 20 -h 20 -i)
-   MEDIA_FILE=$(cat "$M_CACHE" | grep "/$MEDIA_FILE$" | head -n1)
+   test -n "$sfile" && exec ffplay -loop 0 "$sfile"
+}
 
-   test -n "$MEDIA_FILE" && ffplay "$MEDIA_FILE"
-fi
+requires file stest ffplay
+msearch "$HOME/Download" "$HOME/Videos"
