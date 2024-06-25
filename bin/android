@@ -30,11 +30,20 @@ die () {
 }
 
 qemu_android_check () {
-   num_re='\([1-9]\|[1-9][0-9]\)G$'
+   command -v "$qemu" >/dev/null || die "Error: $qemu not found."
 
-   command -v "$qemu" >/dev/null           || die "Error: $qemu not found."
-   lsmod | grep -q ^kvm                    || die "Error: kvm kernel module not found."
+   lsmod | grep -q ^kvm || die "Error: kvm kernel module not found."
+
+   num_re='\([1-9]\|[1-9][0-9]\)G$'
    expr "$num_core" : "$num_re" >/dev/null || die "Error: Invalid number of cores."
+
+   test -f "$kernel"  || die "Error: kernel '$kernel' not found."
+   test -f "$system"  || die "Error: system '$system' not found."
+   test -f "$data"    || die "Error: data '$data' not found."
+   test -f "$ramdisk" || die "Error: ramdisk '$ramdisk' not found."
+   test -f "$initrd"  || die "Error: initrd '$initrd' not found."
+
+   ram=$((${ram%G} * 1024))
 }
 
 drive_system () {
@@ -75,14 +84,6 @@ END
    printf "$args" | tr '\n' ','
 }
 
-user_netdev () {
-   printf 'user,id=knet,hostfwd=tcp::5000-:5000'
-}
-
-device_knet () {
-   printf 'virtio-net-pci,netdev=knet'
-}
-
 qemu_android () {
    eval $qemu               \
       -enable-kvm            \
@@ -100,31 +101,7 @@ qemu_android () {
       -drive  "$(drive_system)"          \
       -drive  "$(drive_ramdisk)"          \
       -drive  "$(drive_data)"              \
-      -netdev "$(user_netdev)"              \
-      -device "$(device_knet)"
-
+      -netdev user,id=knet                  \
+      -device virtio-net-pci,netdev=knet     \
+      -k fr
 }
-
-#   -device qemu-xhci,id=xhci0 -device usb-tablet,bus=xhci0.0 -machine vmport=off \
-qemu-system-x86_64 \
-   -m 4096 \
-   -k fr \
-   -enable-kvm \
-   -cpu host \
-   -smp cores=2 \
-   -append "nomodeset xforceversa root=/dev/ram0 androidboot.selinux=permissive console=ttyS0 RAMDISK=vdb DATA=vdc" \
-   -kernel "/home/kueppo/Img/android/kernel" \
-   -initrd "/home/kueppo/Img/android/initrd.img" \
-   -boot menu=on \
-	-drive index=0,if=virtio,id=system,file=/home/kueppo/Img/android/system.sfs,format=raw,readonly=on \
-	-drive index=1,if=virtio,id=ramdisk,file=/home/kueppo/Img/android/ramdisk.img,format=raw,readonly=on \
-	-drive index=2,if=virtio,id=data,file=/home/kueppo/Img/data.img,format=raw \
-   -vga virtio \
-   -display gtk \
-   -serial mon:stdio \
-   -netdev user,id=anet0 -device virtio-net-pci,netdev=anet0
-   #-netdev tap,script=no,downscript=no,id=nd01,ifname=tap0  -device e1000,netdev=nd01
-   #-netdev bridge,br=br0,id=anet0 -device e1000,netdev=anet0
-   #-netdev user,id=anet0,hostfwd=tcp::8080-:8080 -device virtio-net-pci,netdev=anet0
-
-
