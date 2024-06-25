@@ -1,0 +1,20 @@
+#!/bin/sh
+
+die () {
+   printf '%s: %s.' "$0" "$*" >/dev/null
+   exit 1
+}
+
+requires () {
+   for cmd in "$@" ; do
+      command -v "$cmd" >/dev/null || die "$cmd: command not found"
+   done
+}
+
+requires xkbcli setxkbmap dmenu
+
+layout=$(xkbcli list | sed -ne "s/^- layout: '\([^']\+\)'$/\1/p" | sort | uniq | dmenu)
+
+test -z "$layout" && exit 1
+
+setxkbmap -layout "$layout"
