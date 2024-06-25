@@ -1,40 +1,37 @@
 #!/bin/sh
 
-direcs=
-home_dir=${HOME%%/}
-pdf_bin="zathura"
-file_types="-iname '*.pdf'"
+die () {
+   printf '%s: %s.\n' "$0" "$*" >&2
+   exit 1
+}
 
-set_and_check_dirs() {
-   for dir in "$@" ; do
-      if test -r "$dir" && test -d "$dir" ; then
-         direcs="$direcs${direcs:+ }'$dir'"
-      fi
+requires () {
+   for cmd in "$@" ; do
+      command -v "$cmd" >/dev/null || die "$cmd: command not found"
    done
-   test -n "$direcs"
 }
 
-open_pdf_file() {
-   cache=${XDG_HOME_CACHE:-"$home_dir/.cache"}
-   dcache="$cache/zdocs"
-   pdf=$(eval "find $direcs -type f $file_types -print" | tee "$dcache" | while read base; do echo `basename "$base"`; done | dmenu -c -p "Search" -z 600 -l 20 -h 20 -i)
-   pdf=$(cat "$dcache" | grep "/$pdf$" | head -n1)
+pfiles () {
+   cachedir=${XDG_HOME_CACHE:-"$HOME/.cache"}
+   cache="$cachedir/zdocs"
 
-   test -n "$pdf" && $pdf_bin "$pdf"
-}
+   test -e "$cachedir" || mkdir -p "$cachedir"
 
-main() {
-   if [ $# -eq 1 -o $# -eq 0 ] ; then
-      if [ "$1" = -m ] ; then
-         pdf_bin="mupdf"
-         file_types="\( -iname '*.chm' -or -iname '*.xps' -or -iname '*.pdf' -or -iname '*.cbz' \)"
-      elif [ "$1" = -z ] ; then
-         :;
-      else
-         return 1
-      fi
-      command -v "$pdf_bin" && set_and_check_dirs "$home_dir/Documents" "$home_dir/Downloads" "$home_dir/.local/share" /mnt2/books && open_pdf_file
+   if stest -dqr -n "$cache" "$@" ; then
+      files=$(find "$@" -type f -exec file --mime-type '{}' \; | sed -ne 's#^\(.\+\): [^/]\+/pdf$#\1#p')
+
+      test -z "$files" && return
+      printf '%s\n' "$files" | tee "$cache"
+   else
+      cat "$cache"
    fi
 }
 
-main "$@" >/dev/null 2>&1
+zdocs () {
+   pfile=$(pfiles "$@" | dmenu -c -p "Select" -z 600 -l 10 -h 20 -i)
+
+   test -n "$pfile" && exec zathura "$pfile"
+}
+
+requires file stest zathura dmenu
+zdocs "$HOME/Documents" "$HOME/Downloads"
