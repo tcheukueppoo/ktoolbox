@@ -11,27 +11,28 @@ requires () {
    done
 }
 
-msearch () {
-   cache="${XDG_HOME_CACHE:-"$HOME/.cache"}"
+mfiles () {
+   cachedir="${XDG_HOME_CACHE:-"$HOME/.cache"}"
    mcache="${cache}/msearch"
 
-   sfile=
-   vfiles=
-   dmenu='dmenu -c -p "Select" -z 600 -l 10 -h 20 -i'
+   test -e "$cachedir" || mkdir -p "$cachedir"
 
-   dirs=$(stest -dr -n "$mcache" "$@" | sed -e 's/^/"/;s/$/"/')
-
-   if test -n "$dirs" ; then
-      vfiles=$(eval find "$dirs" -type f -exec file --mime-type '"{}"' '\;' | sed -ne 's#^\(.\+\): video/.\+$#\1#p')
+   if stest -dqr -n "$mcache" "$@" ; then
+      vfiles=$(find "$@" -type f -exec file --mime-type '{}' \; | sed -ne 's#^\(.\+\): video/.\+$#\1#p')
 
       test -z "$vfiles" && return
-      sfile=$(printf '%s\n' "$vfiles" | tee -a "$mcache" | eval "$dmenu")
+      printf '%s\n' "$vfiles" | tee "$mcache"
    else
-      sfile=$(cat "$mcache" | eval "$dmenu")
+      cat "$mcache"
    fi
+}
+
+msearch () {
+   sfile=$(mfiles "$@" | dmenu -c -p "Select" -z 600 -l 10 -h 20 -i)
 
    test -n "$sfile" && exec ffplay -loop 0 "$sfile"
 }
 
-requires file stest ffplay
+requires file stest ffplay dmenu
+
 msearch "$HOME/Download" "$HOME/Videos"
