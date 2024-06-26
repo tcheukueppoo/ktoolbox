@@ -17,4 +17,4 @@ layout=$(xkbcli list | sed -ne "s/^- layout: '\([^']\+\)'$/\1/p" | sort | uniq |
 
 test -z "$layout" && exit 1
 
-setxkbmap -layout "$layout"
+exec setxkbmap -layout "$layout"
