@@ -13,7 +13,7 @@ requires () {
 
 mfiles () {
    cachedir="${XDG_HOME_CACHE:-"$HOME/.cache"}"
-   mcache="${cache}/msearch"
+   mcache="${cachedir}/msearch"
 
    test -e "$cachedir" || mkdir -p "$cachedir"
 
