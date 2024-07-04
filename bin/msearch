@@ -17,7 +17,9 @@ mfiles () {
 
    test -e "$cachedir" || mkdir -p "$cachedir"
 
-   if stest -dqr -n "$mcache" "$@" ; then
+   if stest -dqr -n "$mcache" "$@" \
+   || test -n "$(find "$@" -type d -cnewer "$mcache")" ; then
+
       vfiles=$(find "$@" -type f -exec file --mime-type '{}' \; | sed -ne 's#^\(.\+\): video/.\+$#\1#p')
 
       test -z "$vfiles" && return
