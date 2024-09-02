@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# script to create a ussd(Unstructured supplementary Service Data)
+# script to create a ussd (Unstructured supplementary Service Data)
 # session through a 3GPP network
 
 get_modem() {

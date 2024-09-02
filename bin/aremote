@@ -16,11 +16,15 @@ say () {
 }
 
 aremote () {
+
+   test -z "${CODEBERG_TOKEN:-}" && die "CODEBERG_TOKEN: paramater is unset"
+   test -z "${GITHUB_TOKEN:-}"   && die "GITHUB_TOKEN: paramater is unset"
+
    remotes=$(cat <<END
-https://codeberg.org/tcheukueppo
-https://github.com/tcheukueppo
+https://$CODEBERG_TOKEN@codeberg.org/tcheukueppo
+https://$GITHUB_TOKEN@github.com/tcheukueppoo
 END
-   )
+)
 
    test -d ~/projects || return
 
@@ -28,32 +32,17 @@ END
       stest -dxq "$file" || continue
 
       cd "$file"
-      git_dir=`git rev-parse --show-toplevel 2>/dev/null`
+      git_dir=$(git rev-parse --show-toplevel 2>/dev/null)
 
       test $? -ne 0 && continue
       test "$(readlink -f "$file")" = "$git_dir" || die "Unexpected error!"
-
-      git remote | grep -q '^origin'
-      test $? -ne 0 && continue
-
-      url=`git remote get-url origin`
-      url=${url%/}
-      say "$remotes" | grep -qF "${url%/*}"
-      test $? -ne 0 && continue
 
       printf "on '%s'...\n" "$file"
       IFS='
 '
       for r in $remotes ; do
-         name=${r#*://}
-         name=${name%/*}
          url="$r/$(basename "$file")"
-
-         git remote | grep -qxF "$name"
-
-         test $? -eq 0 || git remote add "$name" "$url"
-         git remote set-url "$name" "$url"
-         git push "$name"
+         git push --set-upstream "$url"
       done
 
       cd - >/dev/null
