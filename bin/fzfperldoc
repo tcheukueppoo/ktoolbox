@@ -14,22 +14,20 @@ die () {
 if ! test $# -ge 1 ; then
    die "Usage: $0 <module_name> [search_module]"
 elif test $# -eq 1 ; then
-   data=$1
-   base_mod=$1
+   mod=$1
+   search=$1
 else
-   data=$1
-   base_mod=''
+   mod=$1
+   search=''
    shift
-   for mod in "$@" ; do
-      base_mod="$base_mod${base_mod:+|}$mod"
+   for i in "$@" ; do
+      search="$search${search:+|}$i"
    done
 fi
 
-doc=$(perldoc "$data")
+doc=$(perldoc "$mod")
 test $? -ne 0 && die "$doc"
 
-sub_mod=$(printf '%s\n' "$doc" | perl -nE 'say $1 while /\G.*?((?:'"$base_mod"')(?:::\w++)+)/g' | sort | uniq | fzf)
+res=$(printf '%s\n' "$doc" | perl -nE 'say $1 while /\G.*?((?:'"$search"')(?:::\w++)+)/g' | sort -u | fzf)
 
-test -n "$sub_mod" && perldoc "$sub_mod"
-
-
+test -n "$res" && perldoc "$res"
