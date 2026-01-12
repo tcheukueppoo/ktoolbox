@@ -32,7 +32,7 @@ mfiles () {
 msearch () {
    sfile=$(mfiles "$@" | dmenu -c -p "Select" -z 600 -l 10 -h 20 -i)
 
-   test -n "$sfile" && exec ffplay -loop 0 "$sfile"
+   test -n "$sfile" && exec mpv -loop 0 "$sfile"
 }
 
 requires file stest mpv dmenu

@@ -8,8 +8,12 @@ pixel_border=2
 out_dir="$HOME/Videos/Record"
 out_file="$out_dir/$(date +'%d-%m-%y-%ss').mp4"
 pid_file="$HOME/.record.pid"
+capture_audio_cmd_arg=''
 
-mkdir -p "$out_dir"
+die () {
+   printf '%s: %s\n' "$0" "$*" >&2
+   exit 1
+}
 
 requires () {
    for cmd in "$@" ; do
@@ -17,7 +21,16 @@ requires () {
    done >/dev/null
 }
 
+set_audio_capture_cmd () {
+   if test -n "$(pgrep '^pipewire')" && command -v pactl >/dev/null ; then
+      source=$(pactl list short sources | fgrep alsa_output | awk -F'[\t ]*' '{print $2}')
+      test -n "$source" && capture_audio_cmd_arg="-f pulse -i ${source} -framerate $frame_rate"
+   fi
+}
+
 record () {
+   set_audio_capture_cmd
+
    ff_opts=$(
       xwininfo | awk -v pixel_border="$pixel_border" '
          /Height:/ { h = substr($0, 11) }
@@ -36,27 +49,29 @@ record () {
       '
    )
 
-   ffmpeg                   \
-    -hide_banner             \
-    -f x11grab                \
-    -framerate $frame_rate     \
-    $ff_opts                    \
-    -pix_fmt rgba                \
-    -qp 0                         \
-    -preset ultrafast              \
-    -y "$out_file" &
+   expr match "$ff_opts" '-video_size [0-9]\+x[0-9]\+ -i :0\.0+[0-9]\+,[0-9]\+' >/dev/null || die "Couldn't select the window."
+
+   ffmpeg -hide_banner           \
+          $capture_audio_cmd_arg  \
+          -f x11grab               \
+          $ff_opts                  \
+          -framerate $frame_rate     \
+          -pix_fmt rgba               \
+          -qp 0                        \
+          -preset ultrafast             \
+          -y "$out_file" &
 
    printf $! >"$pid_file"
    waitpid $!
 }
 
 main () {
-   if test -s "$pid_file"    \
-   && pid=$(cat "$pid_file")  \
-   && test -d "/proc/$pid" ; then
+   requires xwininfo ffmpeg herbe
+
+   if test -s "$pid_file" && pid=$(cat "$pid_file") && test -d "/proc/$pid" ; then
       kill -TERM "$pid"
    else
-      requires xwininfo ffmpeg herbe
+      mkdir -p "$out_dir"
       record
    fi
 }
