@@ -13,7 +13,7 @@ requires () {
 
 requires xkbcli setxkbmap dmenu
 
-layout=$(xkbcli list | sed -ne "s/^- layout: '\([^']\+\)'$/\1/p" | sort | uniq | dmenu)
+layout=$(xkbcli list | sed -ne "s/^- layout: '\([^']\+\)'$/\1/p" | grep r | sort | uniq | dmenu)
 
 test -z "$layout" && exit 1
 

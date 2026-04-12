@@ -1,0 +1,69 @@
+#!/bin/sh
+
+set -x
+say () {
+   printf '%s\n' "$*"
+}
+
+fail () {
+   printf "$0: %s\n" "$*" >&2
+   exit 1
+}
+
+requires () {
+   for i in "$@" ; do
+      command -v "$i" >/dev/null || fail "$i not found."
+   done
+}
+
+fetch_proxy_addr () {
+   valid_proxy=''
+   link='https://proxymania.su/en/free-proxy'
+   perl_code='
+      local $/;
+      $_ = <<>>;
+      say "@f[0,2]" while m| \G.*? (?{undef @f}) <tr> (?: \s* <td[^>]*?>\s*(.+?)\s*</td> \s* (?{push @f, $1}) )+ </tr> |sgx
+   '
+
+   proxies=$(curl -s "$link" | perl -E "$perl_code" | sed -ne 's/^\(.*\) HTTPS$/\1/p')
+   test -z "$proxies" && return
+
+   O_IFS=$IFS
+   IFS=$(printf '\n_')
+   IFS=${IFS%?}
+   
+   for proxy in $proxies ; do
+      res_code=$(curl -Ss -o /dev/null -w '%{http_code}' --proxy "http://$proxy" 'https://www.whatsapp.com' 2>/dev/null)
+
+      test "$res_code" -ne 200 && continue
+      valid_proxy=$proxy
+      break
+   done
+   IFS=$O_IFS
+
+   say "$valid_proxy"
+}
+
+proxy_addr=''
+
+set_env_variables () {
+   rc_file="$HOME/.proxy_rc"
+
+   cat <<-EOL >>"$rc_file"
+npm config set https-proxy 'http://$proxy_addr'
+npm config set proxy      'http://$proxy_addr'
+export HTTP_PROXY='http://$proxy_addr'
+export HTTPS_PROXY='http://$proxy_addr'
+EOL
+
+}
+
+main () {
+   requires curl perl
+
+   proxy_addr=$(fetch_proxy_addr)
+   test -z "$proxy_addr" && fail "Couldn't fetch proxies."
+   set_env_variables
+}
+
+main
